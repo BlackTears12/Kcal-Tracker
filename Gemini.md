@@ -1,4 +1,4 @@
-Your job is to generate a python render calorie tracking application, the app itself should be fullstack that means there is no separate frontend and backend project. Do not implement the backend logic itself. It is crucial to use the render python library for the components, do not write separate js or html for the app.
+Your job is to generate a python reflex calorie tracking application, the app itself should be fullstack that means there is no separate frontend and backend project. Do not implement the backend logic itself. It is crucial to use the reflex python library for the components, do not write separate js or html for the app.
 
 The page have to contain a chatbot interface where you can speak with aim which will log meals, create recipes etc... by just chatting.
 There should be a simple dashboard on the page with max/eaten kcal and protein is displayed on a gauge and also a list of meals and recipes should be seen which can be edited.

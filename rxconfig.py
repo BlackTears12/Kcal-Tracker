@@ -3,6 +3,15 @@ import reflex as rx
 config = rx.Config(
     app_name="kcal_tracker",
     plugins=[
+        rx.plugins.RadixThemesPlugin(
+            theme=rx.theme(
+                appearance="light",
+                has_background=True,
+                accent_color="orange",
+                gray_color="slate",
+                radius="medium",
+            )
+        ),
         rx.plugins.SitemapPlugin(),
         rx.plugins.TailwindV4Plugin(),
     ],

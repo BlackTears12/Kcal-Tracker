@@ -1,0 +1,209 @@
+import reflex as rx
+from kcal_tracker.state import State
+
+def render_chat_message(msg: dict) -> rx.Component:
+    """Renders a chat message bubble."""
+    is_user = msg["sender"] == "user"
+    
+    return rx.flex(
+        rx.cond(
+            is_user,
+            # User Message (Right Aligned)
+            rx.flex(
+                rx.vstack(
+                    rx.box(
+                        rx.text(msg["text"], size="2", color="white"),
+                        style={
+                            "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+                            "padding": "10px 14px",
+                            "border_radius": "16px 16px 4px 16px",
+                            "box_shadow": "0 2px 8px rgba(255, 107, 107, 0.2)",
+                        },
+                    ),
+                    rx.text(msg["timestamp"], size="1", color_scheme="gray", align="right"),
+                    spacing="1",
+                    align="end",
+                    max_width="85%",
+                ),
+                rx.avatar(fallback="U", size="2", color_scheme="orange", variant="solid"),
+                spacing="2",
+                align="start",
+                justify="end",
+                width="100%",
+            ),
+            # AI Message (Left Aligned)
+            rx.flex(
+                rx.avatar(
+                    fallback="AI",
+                    size="2",
+                    color_scheme="purple",
+                    variant="soft",
+                    style={"border": "1px solid var(--purple-6)"},
+                ),
+                rx.vstack(
+                    rx.box(
+                        rx.vstack(
+                            rx.cond(
+                                msg["action"] != "",
+                                rx.badge(
+                                    msg["action"],
+                                    color_scheme="purple",
+                                    variant="solid",
+                                    size="1",
+                                    radius="full",
+                                ),
+                            ),
+                            rx.markdown(msg["text"]),
+                            spacing="2",
+                        ),
+                        style={
+                            "background": "var(--gray-3)",
+                            "border": "1px solid var(--gray-5)",
+                            "padding": "12px 16px",
+                            "border_radius": "16px 16px 16px 4px",
+                        },
+                    ),
+                    rx.text(msg["timestamp"], size="1", color_scheme="gray"),
+                    spacing="1",
+                    align="start",
+                    max_width="88%",
+                ),
+                spacing="2",
+                align="start",
+                justify="start",
+                width="100%",
+            ),
+        ),
+        width="100%",
+    )
+
+
+def chat_section() -> rx.Component:
+    """AI Assistant Chatbot Section."""
+    quick_prompts = [
+        ("🍳 Log 2 eggs and toast", "Log 2 eggs and whole wheat toast for breakfast (320 kcal, 18g protein)"),
+        ("🍗 Log chicken & rice", "Log 200g grilled chicken breast and 150g rice for lunch"),
+        ("📖 Create smoothie recipe", "Create a recipe for High-Protein Smoothie with 300ml milk, 1 banana, 40g whey"),
+        ("📊 Remaining macros?", "How much protein and calories do I have left today?"),
+    ]
+
+    return rx.card(
+        rx.vstack(
+            # Header
+            rx.hstack(
+                rx.hstack(
+                    rx.icon("bot", color="var(--purple-9)", size=22),
+                    rx.vstack(
+                        rx.heading("AI Nutrition Assistant", size="4", weight="bold"),
+                        rx.hstack(
+                            rx.box(
+                                style={
+                                    "width": "8px",
+                                    "height": "8px",
+                                    "border_radius": "50%",
+                                    "background": "#10B981",
+                                }
+                            ),
+                            rx.text("Online & Ready", size="1", color_scheme="green"),
+                            spacing="1",
+                            align="center",
+                        ),
+                        spacing="0",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.badge("Natural Language", color_scheme="purple", variant="soft", radius="full"),
+                justify="between",
+                align="center",
+                width="100%",
+            ),
+            rx.divider(size="4"),
+            
+            # Quick Action Prompt Chips
+            rx.flex(
+                rx.text("Quick Actions:", size="1", weight="bold", color_scheme="gray"),
+                rx.flex(
+                    *[
+                        rx.badge(
+                            label,
+                            color_scheme="gray",
+                            variant="surface",
+                            size="2",
+                            on_click=lambda text=prompt: State.send_chat_prompt(text),
+                            style={
+                                "cursor": "pointer",
+                                "transition": "all 0.15s ease",
+                                "&:hover": {
+                                    "background": "var(--purple-4)",
+                                    "color": "var(--purple-11)",
+                                },
+                            },
+                        )
+                        for label, prompt in quick_prompts
+                    ],
+                    wrap="wrap",
+                    spacing="2",
+                ),
+                direction="column",
+                spacing="2",
+                width="100%",
+                padding_y="1",
+            ),
+            
+            # Chat Messages Scroll Area
+            rx.box(
+                rx.vstack(
+                    rx.foreach(State.chat_history, render_chat_message),
+                    spacing="3",
+                    width="100%",
+                ),
+                style={
+                    "max_height": "420px",
+                    "min_height": "320px",
+                    "overflow_y": "auto",
+                    "padding": "12px",
+                    "background": "var(--gray-1)",
+                    "border_radius": "12px",
+                    "border": "1px solid var(--gray-4)",
+                },
+                width="100%",
+            ),
+
+            # Chat Input Form
+            rx.form(
+                rx.hstack(
+                    rx.input(
+                        placeholder="Talk to AI... e.g. 'Log 150g salmon for dinner' or 'Create protein pancake recipe'",
+                        value=State.chat_input,
+                        on_change=State.set_chat_input,
+                        size="3",
+                        width="100%",
+                        style={"border_radius": "10px"},
+                    ),
+                    rx.button(
+                        rx.icon("send", size=18),
+                        "Send",
+                        size="3",
+                        color_scheme="purple",
+                        type="submit",
+                        style={"cursor": "pointer", "border_radius": "10px"},
+                    ),
+                    spacing="2",
+                    width="100%",
+                    align="center",
+                ),
+                on_submit=State.handle_chat_submit,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        size="3",
+        style={
+            "background": "var(--gray-2)",
+            "border": "1px solid var(--gray-4)",
+            "border_radius": "16px",
+        },
+        width="100%",
+    )
