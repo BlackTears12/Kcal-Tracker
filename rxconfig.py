@@ -2,6 +2,7 @@ import reflex as rx
 
 config = rx.Config(
     app_name="kcal_tracker",
+    api_url="https://rpi.taila35c8c.ts.net",
     plugins=[
         rx.plugins.RadixThemesPlugin(
             theme=rx.theme(
