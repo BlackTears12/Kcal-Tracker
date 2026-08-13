@@ -1,14 +1,21 @@
 import reflex as rx
 from kcal_tracker.state import State
 from kcal_tracker.components.navbar import navbar
-from kcal_tracker.components.dashboard import dashboard_summary, target_dialog
+from kcal_tracker.components.dashboard import (
+    dashboard_summary,
+    mobile_macro_summary,
+    mobile_nav_pills,
+    target_dialog,
+)
 from kcal_tracker.components.meals import meals_section, meal_dialog
 from kcal_tracker.components.recipes import recipes_section, recipe_dialog
 from kcal_tracker.components.chat import chat_section
 
+
 def desktop_content() -> rx.Component:
     """Main page container for Calorie Tracker fullstack app."""
     return rx.container(
+        navbar(),
         rx.vstack(
             # App Title & Welcome Subtitle
             rx.flex(
@@ -77,13 +84,112 @@ def desktop_content() -> rx.Component:
         ),
         size="4",
     )
-    
+
+
 def mobile_content() -> rx.Component:
-  pass
+    """Snappy, Android app-like mobile layout with smaller kcal & protein macros followed by AI chat."""
+    return rx.box(
+        rx.vstack(
+            # Top App Bar Header Card (Android Native Style)
+            rx.card(
+                rx.flex(
+                    rx.hstack(
+                        rx.box(
+                            rx.icon("flame", color="white", size=18),
+                            style={
+                                "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+                                "padding": "6px",
+                                "border_radius": "8px",
+                                "display": "flex",
+                                "align_items": "center",
+                                "justify_content": "center",
+                            },
+                        ),
+                        rx.vstack(
+                            rx.hstack(
+                                rx.heading("Kcal AI", size="3", weight="bold"),
+                                rx.badge("Mobile App", color_scheme="orange", variant="soft", size="1"),
+                                spacing="2",
+                                align="center",
+                            ),
+                            rx.text("Track macros & AI food logging", size="1", color_scheme="gray"),
+                            spacing="0",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.hstack(
+                        rx.badge(
+                            f"{State.total_calories} / {State.target_calories} kcal",
+                            color_scheme="orange",
+                            variant="surface",
+                            size="1",
+                        ),
+                        rx.badge(
+                            f"{State.total_protein} / {State.target_protein}g P",
+                            color_scheme="blue",
+                            variant="surface",
+                            size="1",
+                        ),
+                        spacing="1",
+                        align="center",
+                    ),
+                    justify="between",
+                    align="center",
+                    width="100%",
+                ),
+                size="1",
+                style={
+                    "background": "var(--gray-2)",
+                    "border": "1px solid var(--gray-4)",
+                    "border_radius": "14px",
+                    "padding": "10px 12px",
+                },
+                width="100%",
+            ),
+
+            # 1. Smaller Kcal & Protein Macros Summary
+            mobile_macro_summary(),
+
+            # Android App Navigation Pills
+            mobile_nav_pills(),
+
+            # 2. AI Chatbot Section (Follows smaller macros directly)
+            rx.cond(
+                (State.active_tab == "chat") | (State.active_tab == "all") | (State.active_tab == "dashboard"),
+                chat_section(),
+            ),
+
+            # 3. Logged Meals Section
+            rx.cond(
+                (State.active_tab == "meals") | (State.active_tab == "all") | (State.active_tab == "dashboard"),
+                meals_section(),
+            ),
+
+            # 4. Saved Recipes Section
+            rx.cond(
+                (State.active_tab == "recipes") | (State.active_tab == "all") | (State.active_tab == "dashboard"),
+                recipes_section(),
+            ),
+
+            # Dialog Modals
+            meal_dialog(),
+            recipe_dialog(),
+            target_dialog(),
+
+            spacing="4",
+            width="100%",
+            padding_x="3",
+            padding_y="3",
+        ),
+        width="100%",
+        max_width="540px",
+        margin="0 auto",
+    )
 
 
 def main_content() -> rx.Component:
-  return rx.box(
-    rx.desktop_only(desktop_content()),
-    rx.mobile_only(mobile_content())
-  )
+    return rx.box(
+        rx.desktop_only(desktop_content()),
+        rx.mobile_only(mobile_content()),
+    )

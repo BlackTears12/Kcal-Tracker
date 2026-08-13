@@ -26,7 +26,6 @@ def login_content() -> rx.Component:
 def index() -> rx.Component:
     return google_oauth_provider(
         rx.box(
-            navbar(),
             rx.cond(
                 UserState.token_is_valid,
                 content.main_content(),

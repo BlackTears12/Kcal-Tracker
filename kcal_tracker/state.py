@@ -115,7 +115,9 @@ class State(rx.State):
     target_form_carbs: int = 220
     target_form_fat: int = 65
 
-    # Explicit Setters for inputs & modals
+    def set_active_tab(self, val: str):
+        self.active_tab = val
+
     def set_chat_input(self, val: str):
         self.chat_input = val
 
