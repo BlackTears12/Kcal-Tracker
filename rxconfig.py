@@ -21,4 +21,5 @@ config = rx.Config(
         "localhost",
         "127.0.0.1",
     ],
+    env_file=".env"
 )
