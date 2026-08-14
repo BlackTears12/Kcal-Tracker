@@ -1,5 +1,6 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import NutritionState
+
 
 def calorie_gauge() -> rx.Component:
     """Circular visual gauge for Calorie target vs eaten."""
@@ -13,10 +14,10 @@ def calorie_gauge() -> rx.Component:
                     align="center",
                 ),
                 rx.cond(
-                    State.is_calorie_over,
+                    NutritionState.is_calorie_over,
                     rx.badge("OVER LIMIT", color_scheme="red", variant="solid", radius="full"),
                     rx.badge(
-                        f"{State.remaining_calories} kcal left",
+                        f"{NutritionState.remaining_calories} kcal left",
                         color_scheme="orange",
                         variant="soft",
                         radius="full",
@@ -35,17 +36,17 @@ def calorie_gauge() -> rx.Component:
                             <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" class="text-gray-200 dark:text-gray-800" />
                             <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" 
                                     stroke-dasharray="408.4" 
-                                    stroke-dashoffset="{408.4 - (State.calorie_percentage / 100.0) * 408.4}"
+                                    stroke-dashoffset="{408.4 - (NutritionState.calorie_percentage / 100.0) * 408.4}"
                                     stroke-linecap="round"
                                     class="text-orange-500 transition-all duration-700 ease-out" />
                         </svg>
                         """
                     ),
                     rx.vstack(
-                        rx.heading(f"{State.total_calories}", size="7", weight="bold"),
-                        rx.text(f"/ {State.target_calories} kcal", size="2", color_scheme="gray"),
+                        rx.heading(f"{NutritionState.total_calories}", size="7", weight="bold"),
+                        rx.text(f"/ {NutritionState.target_calories} kcal", size="2", color_scheme="gray"),
                         rx.badge(
-                            f"{State.calorie_percentage}%",
+                            f"{NutritionState.calorie_percentage}%",
                             color_scheme="orange",
                             variant="surface",
                             size="1",
@@ -70,14 +71,14 @@ def calorie_gauge() -> rx.Component:
             rx.hstack(
                 rx.vstack(
                     rx.text("Eaten", size="1", color_scheme="gray"),
-                    rx.text(f"{State.total_calories} kcal", size="2", weight="bold"),
+                    rx.text(f"{NutritionState.total_calories} kcal", size="2", weight="bold"),
                     align="center",
                     spacing="0",
                 ),
                 rx.divider(orientation="vertical", size="2"),
                 rx.vstack(
                     rx.text("Target", size="1", color_scheme="gray"),
-                    rx.text(f"{State.target_calories} kcal", size="2", weight="bold"),
+                    rx.text(f"{NutritionState.target_calories} kcal", size="2", weight="bold"),
                     align="center",
                     spacing="0",
                 ),
@@ -85,7 +86,7 @@ def calorie_gauge() -> rx.Component:
                 rx.vstack(
                     rx.text("Remaining", size="1", color_scheme="gray"),
                     rx.text(
-                        f"{State.remaining_calories} kcal",
+                        f"{NutritionState.remaining_calories} kcal",
                         size="2",
                         weight="bold",
                         color_scheme="orange",
@@ -125,7 +126,7 @@ def protein_gauge() -> rx.Component:
                     align="center",
                 ),
                 rx.badge(
-                    f"{State.remaining_protein}g left",
+                    f"{NutritionState.remaining_protein}g left",
                     color_scheme="blue",
                     variant="soft",
                     radius="full",
@@ -143,17 +144,17 @@ def protein_gauge() -> rx.Component:
                             <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" class="text-gray-200 dark:text-gray-800" />
                             <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" 
                                     stroke-dasharray="408.4" 
-                                    stroke-dashoffset="{408.4 - (State.protein_percentage / 100.0) * 408.4}"
+                                    stroke-dashoffset="{408.4 - (NutritionState.protein_percentage / 100.0) * 408.4}"
                                     stroke-linecap="round"
                                     class="text-blue-500 transition-all duration-700 ease-out" />
                         </svg>
                         """
                     ),
                     rx.vstack(
-                        rx.heading(f"{State.total_protein}g", size="7", weight="bold"),
-                        rx.text(f"/ {State.target_protein}g target", size="2", color_scheme="gray"),
+                        rx.heading(f"{NutritionState.total_protein}g", size="7", weight="bold"),
+                        rx.text(f"/ {NutritionState.target_protein}g target", size="2", color_scheme="gray"),
                         rx.badge(
-                            f"{State.protein_percentage}%",
+                            f"{NutritionState.protein_percentage}%",
                             color_scheme="blue",
                             variant="surface",
                             size="1",
@@ -178,14 +179,14 @@ def protein_gauge() -> rx.Component:
             rx.hstack(
                 rx.vstack(
                     rx.text("Eaten", size="1", color_scheme="gray"),
-                    rx.text(f"{State.total_protein}g", size="2", weight="bold"),
+                    rx.text(f"{NutritionState.total_protein}g", size="2", weight="bold"),
                     align="center",
                     spacing="0",
                 ),
                 rx.divider(orientation="vertical", size="2"),
                 rx.vstack(
                     rx.text("Target", size="1", color_scheme="gray"),
-                    rx.text(f"{State.target_protein}g", size="2", weight="bold"),
+                    rx.text(f"{NutritionState.target_protein}g", size="2", weight="bold"),
                     align="center",
                     spacing="0",
                 ),
@@ -193,7 +194,7 @@ def protein_gauge() -> rx.Component:
                 rx.vstack(
                     rx.text("Remaining", size="1", color_scheme="gray"),
                     rx.text(
-                        f"{State.remaining_protein}g",
+                        f"{NutritionState.remaining_protein}g",
                         size="2",
                         weight="bold",
                         color_scheme="blue",
@@ -234,7 +235,7 @@ def macro_progress_cards() -> rx.Component:
                         align="center",
                     ),
                     rx.text(
-                        f"{State.total_carbs} / {State.target_carbs}g",
+                        f"{NutritionState.total_carbs} / {NutritionState.target_carbs}g",
                         size="2",
                         weight="bold",
                     ),
@@ -242,7 +243,7 @@ def macro_progress_cards() -> rx.Component:
                     width="100%",
                 ),
                 rx.progress(
-                    value=State.carbs_percentage,
+                    value=NutritionState.carbs_percentage,
                     color_scheme="amber",
                     size="2",
                     radius="full",
@@ -267,7 +268,7 @@ def macro_progress_cards() -> rx.Component:
                         align="center",
                     ),
                     rx.text(
-                        f"{State.total_fat} / {State.target_fat}g",
+                        f"{NutritionState.total_fat} / {NutritionState.target_fat}g",
                         size="2",
                         weight="bold",
                     ),
@@ -275,7 +276,7 @@ def macro_progress_cards() -> rx.Component:
                     width="100%",
                 ),
                 rx.progress(
-                    value=State.fat_percentage,
+                    value=NutritionState.fat_percentage,
                     color_scheme="green",
                     size="2",
                     radius="full",
@@ -308,9 +309,9 @@ def mobile_calorie_gauge() -> rx.Component:
                     align="center",
                 ),
                 rx.cond(
-                    State.is_calorie_over,
+                    NutritionState.is_calorie_over,
                     rx.badge("OVER", color_scheme="red", size="1"),
-                    rx.badge(f"{State.remaining_calories} left", color_scheme="orange", variant="soft", size="1"),
+                    rx.badge(f"{NutritionState.remaining_calories} left", color_scheme="orange", variant="soft", size="1"),
                 ),
                 justify="between",
                 align="center",
@@ -324,15 +325,15 @@ def mobile_calorie_gauge() -> rx.Component:
                             <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" class="text-gray-200 dark:text-gray-800" />
                             <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" 
                                     stroke-dasharray="219.9" 
-                                    stroke-dashoffset="{219.9 - (State.calorie_percentage / 100.0) * 219.9}"
+                                    stroke-dashoffset="{219.9 - (NutritionState.calorie_percentage / 100.0) * 219.9}"
                                     stroke-linecap="round"
                                     class="text-orange-500 transition-all duration-700 ease-out" />
                         </svg>
                         """
                     ),
                     rx.vstack(
-                        rx.heading(f"{State.total_calories}", size="3", weight="bold"),
-                        rx.text(f"/ {State.target_calories}", size="1", color_scheme="gray"),
+                        rx.heading(f"{NutritionState.total_calories}", size="3", weight="bold"),
+                        rx.text(f"/ {NutritionState.target_calories}", size="1", color_scheme="gray"),
                         spacing="0",
                         align="center",
                         position="absolute",
@@ -351,8 +352,8 @@ def mobile_calorie_gauge() -> rx.Component:
                 padding_y="1",
             ),
             rx.hstack(
-                rx.text(f"Eaten: {State.total_calories}", size="1", color_scheme="gray"),
-                rx.text(f"{State.calorie_percentage}%", size="1", weight="bold", color_scheme="orange"),
+                rx.text(f"Eaten: {NutritionState.total_calories}", size="1", color_scheme="gray"),
+                rx.text(f"{NutritionState.calorie_percentage}%", size="1", weight="bold", color_scheme="orange"),
                 justify="between",
                 width="100%",
             ),
@@ -382,7 +383,7 @@ def mobile_protein_gauge() -> rx.Component:
                     spacing="1",
                     align="center",
                 ),
-                rx.badge(f"{State.remaining_protein}g left", color_scheme="blue", variant="soft", size="1"),
+                rx.badge(f"{NutritionState.remaining_protein}g left", color_scheme="blue", variant="soft", size="1"),
                 justify="between",
                 align="center",
                 width="100%",
@@ -395,15 +396,15 @@ def mobile_protein_gauge() -> rx.Component:
                             <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" class="text-gray-200 dark:text-gray-800" />
                             <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" 
                                     stroke-dasharray="219.9" 
-                                    stroke-dashoffset="{219.9 - (State.protein_percentage / 100.0) * 219.9}"
+                                    stroke-dashoffset="{219.9 - (NutritionState.protein_percentage / 100.0) * 219.9}"
                                     stroke-linecap="round"
                                     class="text-blue-500 transition-all duration-700 ease-out" />
                         </svg>
                         """
                     ),
                     rx.vstack(
-                        rx.heading(f"{State.total_protein}g", size="3", weight="bold"),
-                        rx.text(f"/ {State.target_protein}g", size="1", color_scheme="gray"),
+                        rx.heading(f"{NutritionState.total_protein}g", size="3", weight="bold"),
+                        rx.text(f"/ {NutritionState.target_protein}g", size="1", color_scheme="gray"),
                         spacing="0",
                         align="center",
                         position="absolute",
@@ -422,8 +423,8 @@ def mobile_protein_gauge() -> rx.Component:
                 padding_y="1",
             ),
             rx.hstack(
-                rx.text(f"Eaten: {State.total_protein}g", size="1", color_scheme="gray"),
-                rx.text(f"{State.protein_percentage}%", size="1", weight="bold", color_scheme="blue"),
+                rx.text(f"Eaten: {NutritionState.total_protein}g", size="1", color_scheme="gray"),
+                rx.text(f"{NutritionState.protein_percentage}%", size="1", weight="bold", color_scheme="blue"),
                 justify="between",
                 width="100%",
             ),
@@ -451,11 +452,11 @@ def mobile_macro_progress_cards() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.text("Carbs", size="1", weight="bold"),
-                        rx.text(f"{State.total_carbs}/{State.target_carbs}g", size="1", color_scheme="gray"),
+                        rx.text(f"{NutritionState.total_carbs}/{NutritionState.target_carbs}g", size="1", color_scheme="gray"),
                         justify="between",
                         width="100%",
                     ),
-                    rx.progress(value=State.carbs_percentage, color_scheme="amber", size="1", radius="full"),
+                    rx.progress(value=NutritionState.carbs_percentage, color_scheme="amber", size="1", radius="full"),
                     spacing="1",
                     width="100%",
                 ),
@@ -477,11 +478,11 @@ def mobile_macro_progress_cards() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.text("Fat", size="1", weight="bold"),
-                        rx.text(f"{State.total_fat}/{State.target_fat}g", size="1", color_scheme="gray"),
+                        rx.text(f"{NutritionState.total_fat}/{NutritionState.target_fat}g", size="1", color_scheme="gray"),
                         justify="between",
                         width="100%",
                     ),
-                    rx.progress(value=State.fat_percentage, color_scheme="green", size="1", radius="full"),
+                    rx.progress(value=NutritionState.fat_percentage, color_scheme="green", size="1", radius="full"),
                     spacing="1",
                     width="100%",
                 ),

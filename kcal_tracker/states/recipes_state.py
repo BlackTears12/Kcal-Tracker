@@ -38,31 +38,56 @@ class Recipe:
     name: str = ""
     ingredients: list[Ingredient] = field(default_factory=list)
     servings: int = 1
+    ingredients_text: str = ""
+    calories: float = 0.0
+    protein: float = 0.0
+    carbs: float = 0.0
+    fat: float = 0.0
+
+    def __post_init__(self):
+        if self.ingredients:
+            if not self.ingredients_text:
+                self.ingredients_text = ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in self.ingredients)
+            if self.calories == 0.0:
+                self.calories = round(sum(ing.calories() for ing in self.ingredients), 1)
+            if self.protein == 0.0:
+                self.protein = round(sum(ing.protein() for ing in self.ingredients), 1)
+            if self.carbs == 0.0:
+                self.carbs = round(sum(ing.carbs() for ing in self.ingredients), 1)
+            if self.fat == 0.0:
+                self.fat = round(sum(ing.fat() for ing in self.ingredients), 1)
 
     def total_calories(self) -> float:
-        return round(sum(ing.calories() for ing in self.ingredients), 1)
+        return self.calories
 
     def total_protein(self) -> float:
-        return round(sum(ing.protein() for ing in self.ingredients), 1)
+        return self.protein
 
     def total_carbs(self) -> float:
-        return round(sum(ing.carbs() for ing in self.ingredients), 1)
+        return self.carbs
 
     def total_fat(self) -> float:
-        return round(sum(ing.fat() for ing in self.ingredients), 1)
+        return self.fat
 
     def calories_per_serving(self) -> float:
-        return round(self.total_calories() / self.servings, 1)
+        if self.servings <= 0:
+            return 0.0
+        return round(self.calories / self.servings, 1)
 
     def protein_per_serving(self) -> float:
-        return round(self.total_protein() / self.servings, 1)
+        if self.servings <= 0:
+            return 0.0
+        return round(self.protein / self.servings, 1)
 
     def carbs_per_serving(self) -> float:
-
-        return round(self.total_carbs() / self.servings, 1)
+        if self.servings <= 0:
+            return 0.0
+        return round(self.carbs / self.servings, 1)
 
     def fat_per_serving(self) -> float:
-        return round(self.total_fat() / self.servings, 1)
+        if self.servings <= 0:
+            return 0.0
+        return round(self.fat / self.servings, 1)
 
     def macros_per_serving(self) -> MacroProfile:
         return MacroProfile(
@@ -73,9 +98,7 @@ class Recipe:
         )
 
     def ingredients_summary(self) -> str:
-        if not self.ingredients:
-            return "No ingredients specified"
-        return ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in self.ingredients)
+        return self.ingredients_text or "No ingredients specified"
 
 
 def get_default_recipes() -> list[Recipe]:
@@ -192,6 +215,42 @@ class RecipeDialogState(rx.State):
     def set_show_modal(self, val: bool):
         self.show_modal = val
 
+    def set_name(self, val: str):
+        self.name = val
+
+    def set_ingredients_text(self, val: str):
+        self.ingredients_text = val
+
+    def set_servings(self, val: str):
+        try:
+            self.servings = int(val)
+        except (ValueError, TypeError):
+            self.servings = 1
+
+    def set_calories(self, val: str):
+        try:
+            self.calories = float(val)
+        except (ValueError, TypeError):
+            self.calories = 0.0
+
+    def set_protein(self, val: str):
+        try:
+            self.protein = float(val)
+        except (ValueError, TypeError):
+            self.protein = 0.0
+
+    def set_carbs(self, val: str):
+        try:
+            self.carbs = float(val)
+        except (ValueError, TypeError):
+            self.carbs = 0.0
+
+    def set_fat(self, val: str):
+        try:
+            self.fat = float(val)
+        except (ValueError, TypeError):
+            self.fat = 0.0
+
     def open_add_recipe(self):
         self.is_editing_recipe = False
         self.recipe_id = 0
@@ -209,11 +268,11 @@ class RecipeDialogState(rx.State):
         self.recipe_id = recipe.id
         self.name = recipe.name
         self.servings = recipe.servings
-        self.ingredients_text = recipe.ingredients_summary()
-        self.calories = recipe.total_calories()
-        self.protein = recipe.total_protein()
-        self.carbs = recipe.total_carbs()
-        self.fat = recipe.total_fat()
+        self.ingredients_text = recipe.ingredients_text or recipe.ingredients_summary()
+        self.calories = recipe.calories
+        self.protein = recipe.protein
+        self.carbs = recipe.carbs
+        self.fat = recipe.fat
         self.show_modal = True
 
     def close_modal(self):
@@ -245,6 +304,11 @@ class RecipeDialogState(rx.State):
                 name=self.name.strip(),
                 ingredients=ingredients,
                 servings=max(1, int(self.servings)),
+                ingredients_text=self.ingredients_text.strip(),
+                calories=float(self.calories),
+                protein=float(self.protein),
+                carbs=float(self.carbs),
+                fat=float(self.fat),
             )
             recipes_state.update_recipe(updated_recipe)
         else:
@@ -254,6 +318,11 @@ class RecipeDialogState(rx.State):
                 name=self.name.strip(),
                 ingredients=ingredients,
                 servings=max(1, int(self.servings)),
+                ingredients_text=self.ingredients_text.strip(),
+                calories=float(self.calories),
+                protein=float(self.protein),
+                carbs=float(self.carbs),
+                fat=float(self.fat),
             )
             recipes_state.add_recipe(new_recipe)
 

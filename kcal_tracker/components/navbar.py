@@ -1,5 +1,6 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import TargetDialogState, NutritionState
+
 
 def navbar() -> rx.Component:
     """Navigation bar header."""
@@ -44,7 +45,7 @@ def navbar() -> rx.Component:
                     variant="outline",
                     color_scheme="gray",
                     size="2",
-                    on_click=State.open_target_modal,
+                    on_click=TargetDialogState.open_modal,
                     style={"cursor": "pointer", "border_radius": "8px"},
                 ),
                 rx.button(
@@ -53,7 +54,7 @@ def navbar() -> rx.Component:
                     variant="soft",
                     color_scheme="red",
                     size="2",
-                    on_click=State.clear_all_meals,
+                    on_click=NutritionState.clear_all_meals,
                     style={"cursor": "pointer", "border_radius": "8px"},
                 ),
                 rx.color_mode.button(size="2"),

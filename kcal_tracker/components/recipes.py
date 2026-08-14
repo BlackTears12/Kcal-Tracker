@@ -1,7 +1,12 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import (
+    Recipe,
+    RecipesState,
+    RecipeDialogState,
+)
 
-def render_recipe_item(recipe: dict) -> rx.Component:
+
+def render_recipe_item(recipe: Recipe) -> rx.Component:
     """Renders a saved recipe card."""
     return rx.card(
         rx.vstack(
@@ -19,8 +24,8 @@ def render_recipe_item(recipe: dict) -> rx.Component:
                         },
                     ),
                     rx.vstack(
-                        rx.heading(recipe["name"], size="3", weight="bold"),
-                        rx.text(f"Servings: {recipe['servings']}", size="1", color_scheme="gray"),
+                        rx.heading(recipe.name, size="3", weight="bold"),
+                        rx.text(f"Servings: {recipe.servings}", size="1", color_scheme="gray"),
                         spacing="0",
                     ),
                     spacing="2",
@@ -33,7 +38,7 @@ def render_recipe_item(recipe: dict) -> rx.Component:
                         size="1",
                         color_scheme="green",
                         variant="soft",
-                        on_click=lambda: State.log_recipe_as_meal(recipe),
+                        on_click=lambda: RecipesState.log_recipe_as_meal(recipe),
                         style={"cursor": "pointer"},
                     ),
                     rx.button(
@@ -41,7 +46,7 @@ def render_recipe_item(recipe: dict) -> rx.Component:
                         size="1",
                         variant="soft",
                         color_scheme="blue",
-                        on_click=lambda: State.open_edit_recipe(recipe),
+                        on_click=lambda: RecipeDialogState.open_edit_recipe(recipe),
                         style={"cursor": "pointer"},
                     ),
                     rx.button(
@@ -49,7 +54,7 @@ def render_recipe_item(recipe: dict) -> rx.Component:
                         size="1",
                         variant="soft",
                         color_scheme="red",
-                        on_click=lambda: State.delete_recipe(recipe["id"]),
+                        on_click=lambda: RecipesState.remove_recipe(recipe.id),
                         style={"cursor": "pointer"},
                     ),
                     spacing="2",
@@ -60,16 +65,16 @@ def render_recipe_item(recipe: dict) -> rx.Component:
                 width="100%",
             ),
             rx.text(
-                f"🛒 Ingredients: {recipe['ingredients']}",
+                f"🛒 Ingredients: {recipe.ingredients_text}",
                 size="2",
                 color_scheme="gray",
                 style={"font_style": "italic"},
             ),
             rx.hstack(
-                rx.badge(f"{recipe['calories']} kcal", color_scheme="orange", variant="surface", size="1"),
-                rx.badge(f"{recipe['protein']}g Protein", color_scheme="blue", variant="surface", size="1"),
-                rx.badge(f"{recipe['carbs']}g Carbs", color_scheme="amber", variant="surface", size="1"),
-                rx.badge(f"{recipe['fat']}g Fat", color_scheme="green", variant="surface", size="1"),
+                rx.badge(f"{recipe.calories} kcal", color_scheme="orange", variant="surface", size="1"),
+                rx.badge(f"{recipe.protein}g Protein", color_scheme="blue", variant="surface", size="1"),
+                rx.badge(f"{recipe.carbs}g Carbs", color_scheme="amber", variant="surface", size="1"),
+                rx.badge(f"{recipe.fat}g Fat", color_scheme="green", variant="surface", size="1"),
                 spacing="2",
                 align="center",
             ),
@@ -100,7 +105,7 @@ def recipes_section() -> rx.Component:
                     rx.icon("chef-hat", color="var(--purple-9)", size=20),
                     rx.heading("Saved Recipes", size="4", weight="bold"),
                     rx.badge(
-                        f"{State.recipe_count} recipes",
+                        f"{RecipesState.recipe_count} recipes",
                         color_scheme="purple",
                         variant="soft",
                         radius="full",
@@ -113,7 +118,7 @@ def recipes_section() -> rx.Component:
                     "Create Recipe",
                     size="2",
                     color_scheme="purple",
-                    on_click=State.open_add_recipe,
+                    on_click=RecipeDialogState.open_add_recipe,
                     style={"cursor": "pointer", "border_radius": "8px"},
                 ),
                 justify="between",
@@ -122,12 +127,12 @@ def recipes_section() -> rx.Component:
             ),
             rx.divider(size="4"),
             rx.cond(
-                State.recipe_count == 0,
+                RecipesState.recipe_count == 0,
                 rx.vstack(
                     rx.icon("book-x", size=36, color="var(--gray-8)"),
                     rx.text("No saved recipes yet.", size="2", weight="bold"),
                     rx.text(
-                        "Create a recipe manually or ask the AI Chatbot e.g. 'Create a recipe for Protein Smoothie'!",
+                        "Create a recipe manually or ask the AI Assistant e.g. 'Create a recipe for Protein Smoothie'!",
                         size="2",
                         color_scheme="gray",
                     ),
@@ -137,7 +142,7 @@ def recipes_section() -> rx.Component:
                     width="100%",
                 ),
                 rx.vstack(
-                    rx.foreach(State.recipes, render_recipe_item),
+                    rx.foreach(RecipesState.recipes, render_recipe_item),
                     spacing="3",
                     width="100%",
                 ),
@@ -159,13 +164,7 @@ def recipe_dialog() -> rx.Component:
     """Dialog modal for creating or editing a recipe."""
     return rx.dialog.root(
         rx.dialog.content(
-            rx.dialog.title(
-                rx.cond(
-                    State.is_editing_recipe,
-                    "Edit Recipe",
-                    "Create New Recipe",
-                ),
-            ),
+            rx.dialog.title(RecipeDialogState.modal_title),
             rx.dialog.description(
                 "Enter recipe details and ingredients.",
                 size="2",
@@ -177,8 +176,8 @@ def recipe_dialog() -> rx.Component:
                         rx.text("Recipe Title", size="2", weight="bold"),
                         rx.input(
                             placeholder="e.g. Protein Oatmeal Bowl",
-                            value=State.recipe_form_name,
-                            on_change=State.set_recipe_form_name,
+                            value=RecipeDialogState.name,
+                            on_change=RecipeDialogState.set_name,
                             size="3",
                             width="100%",
                         ),
@@ -189,8 +188,8 @@ def recipe_dialog() -> rx.Component:
                         rx.text("Ingredients & Quantity", size="2", weight="bold"),
                         rx.input(
                             placeholder="e.g. 50g Oats, 1 scoop Whey, 200ml Milk",
-                            value=State.recipe_form_ingredients,
-                            on_change=State.set_recipe_form_ingredients,
+                            value=RecipeDialogState.ingredients_text,
+                            on_change=RecipeDialogState.set_ingredients_text,
                             size="3",
                             width="100%",
                         ),
@@ -202,8 +201,8 @@ def recipe_dialog() -> rx.Component:
                             rx.text("Servings", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.recipe_form_servings,
-                                on_change=State.set_recipe_form_servings,
+                                value=RecipeDialogState.servings,
+                                on_change=RecipeDialogState.set_servings,
                                 size="3",
                             ),
                             spacing="1",
@@ -212,8 +211,8 @@ def recipe_dialog() -> rx.Component:
                             rx.text("Calories (kcal)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.recipe_form_calories,
-                                on_change=State.set_recipe_form_calories,
+                                value=RecipeDialogState.calories,
+                                on_change=RecipeDialogState.set_calories,
                                 size="3",
                             ),
                             spacing="1",
@@ -222,8 +221,8 @@ def recipe_dialog() -> rx.Component:
                             rx.text("Protein (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.recipe_form_protein,
-                                on_change=State.set_recipe_form_protein,
+                                value=RecipeDialogState.protein,
+                                on_change=RecipeDialogState.set_protein,
                                 size="3",
                             ),
                             spacing="1",
@@ -232,8 +231,8 @@ def recipe_dialog() -> rx.Component:
                             rx.text("Carbs (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.recipe_form_carbs,
-                                on_change=State.set_recipe_form_carbs,
+                                value=RecipeDialogState.carbs,
+                                on_change=RecipeDialogState.set_carbs,
                                 size="3",
                             ),
                             spacing="1",
@@ -254,13 +253,13 @@ def recipe_dialog() -> rx.Component:
                         "Cancel",
                         variant="soft",
                         color_scheme="gray",
-                        on_click=State.close_recipe_modal,
+                        on_click=RecipeDialogState.close_modal,
                     ),
                 ),
                 rx.button(
                     "Save Recipe",
                     color_scheme="purple",
-                    on_click=State.save_recipe,
+                    on_click=RecipeDialogState.save_recipe,
                 ),
                 spacing="3",
                 margin_top="4",
@@ -268,6 +267,6 @@ def recipe_dialog() -> rx.Component:
             ),
             style={"max_width": "500px"},
         ),
-        open=State.show_recipe_modal,
-        on_open_change=State.set_show_recipe_modal,
+        open=RecipeDialogState.show_modal,
+        on_open_change=RecipeDialogState.set_show_modal,
     )

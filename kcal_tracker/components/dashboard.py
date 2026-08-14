@@ -1,5 +1,9 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import (
+    TargetDialogState,
+    MealDialogState,
+    UIState,
+)
 from kcal_tracker.components.gauge import (
     calorie_gauge,
     protein_gauge,
@@ -8,6 +12,7 @@ from kcal_tracker.components.gauge import (
     mobile_protein_gauge,
     mobile_macro_progress_cards,
 )
+
 
 def dashboard_summary() -> rx.Component:
     """Dashboard summary section containing gauges and macro progress."""
@@ -46,7 +51,7 @@ def mobile_macro_summary() -> rx.Component:
                         size="1",
                         variant="soft",
                         color_scheme="gray",
-                        on_click=State.open_target_modal,
+                        on_click=TargetDialogState.open_modal,
                         style={"cursor": "pointer", "border_radius": "6px"},
                     ),
                     rx.button(
@@ -54,7 +59,7 @@ def mobile_macro_summary() -> rx.Component:
                         "Log",
                         size="1",
                         color_scheme="orange",
-                        on_click=State.open_add_meal,
+                        on_click=MealDialogState.open_add_meal,
                         style={"cursor": "pointer", "border_radius": "6px"},
                     ),
                     spacing="2",
@@ -95,36 +100,36 @@ def mobile_nav_pills() -> rx.Component:
             rx.icon("bot", size=14),
             "AI Assistant",
             size="2",
-            variant=rx.cond(State.active_tab == "chat", "solid", "soft"),
+            variant=rx.cond(UIState.active_tab == "chat", "solid", "soft"),
             color_scheme="purple",
-            on_click=lambda: State.set_active_tab("chat"),
+            on_click=lambda: UIState.set_active_tab("chat"),
             style={"cursor": "pointer", "border_radius": "20px", "flex": "1"},
         ),
         rx.button(
             rx.icon("utensils", size=14),
             "Meals",
             size="2",
-            variant=rx.cond(State.active_tab == "meals", "solid", "soft"),
+            variant=rx.cond(UIState.active_tab == "meals", "solid", "soft"),
             color_scheme="orange",
-            on_click=lambda: State.set_active_tab("meals"),
+            on_click=lambda: UIState.set_active_tab("meals"),
             style={"cursor": "pointer", "border_radius": "20px", "flex": "1"},
         ),
         rx.button(
             rx.icon("chef-hat", size=14),
             "Recipes",
             size="2",
-            variant=rx.cond(State.active_tab == "recipes", "solid", "soft"),
+            variant=rx.cond(UIState.active_tab == "recipes", "solid", "soft"),
             color_scheme="purple",
-            on_click=lambda: State.set_active_tab("recipes"),
+            on_click=lambda: UIState.set_active_tab("recipes"),
             style={"cursor": "pointer", "border_radius": "20px", "flex": "1"},
         ),
         rx.button(
             rx.icon("layout-grid", size=14),
             "All",
             size="2",
-            variant=rx.cond((State.active_tab == "all") | (State.active_tab == "dashboard"), "solid", "soft"),
+            variant=rx.cond((UIState.active_tab == "all") | (UIState.active_tab == "dashboard"), "solid", "soft"),
             color_scheme="gray",
-            on_click=lambda: State.set_active_tab("all"),
+            on_click=lambda: UIState.set_active_tab("all"),
             style={"cursor": "pointer", "border_radius": "20px", "flex": "1"},
         ),
         spacing="2",
@@ -150,8 +155,8 @@ def target_dialog() -> rx.Component:
                             rx.text("Target Calories (kcal)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.target_form_calories,
-                                on_change=State.set_target_form_calories,
+                                value=TargetDialogState.target_calories,
+                                on_change=TargetDialogState.set_target_calories,
                                 size="3",
                             ),
                             spacing="1",
@@ -160,8 +165,8 @@ def target_dialog() -> rx.Component:
                             rx.text("Target Protein (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.target_form_protein,
-                                on_change=State.set_target_form_protein,
+                                value=TargetDialogState.target_protein,
+                                on_change=TargetDialogState.set_target_protein,
                                 size="3",
                             ),
                             spacing="1",
@@ -170,8 +175,8 @@ def target_dialog() -> rx.Component:
                             rx.text("Target Carbs (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.target_form_carbs,
-                                on_change=State.set_target_form_carbs,
+                                value=TargetDialogState.target_carbs,
+                                on_change=TargetDialogState.set_target_carbs,
                                 size="3",
                             ),
                             spacing="1",
@@ -180,8 +185,8 @@ def target_dialog() -> rx.Component:
                             rx.text("Target Fat (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.target_form_fat,
-                                on_change=State.set_target_form_fat,
+                                value=TargetDialogState.target_fat,
+                                on_change=TargetDialogState.set_target_fat,
                                 size="3",
                             ),
                             spacing="1",
@@ -202,13 +207,13 @@ def target_dialog() -> rx.Component:
                         "Cancel",
                         variant="soft",
                         color_scheme="gray",
-                        on_click=State.close_target_modal,
+                        on_click=TargetDialogState.close_modal,
                     ),
                 ),
                 rx.button(
                     "Save Targets",
                     color_scheme="orange",
-                    on_click=State.save_targets,
+                    on_click=TargetDialogState.save_targets,
                 ),
                 spacing="3",
                 margin_top="4",
@@ -216,6 +221,6 @@ def target_dialog() -> rx.Component:
             ),
             style={"max_width": "460px"},
         ),
-        open=State.show_target_modal,
-        on_open_change=State.set_show_target_modal,
+        open=TargetDialogState.show_modal,
+        on_open_change=TargetDialogState.set_show_modal,
     )

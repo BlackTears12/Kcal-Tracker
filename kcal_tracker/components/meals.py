@@ -1,7 +1,12 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import (
+    Meal,
+    NutritionState,
+    MealDialogState,
+)
 
-def render_meal_item(meal: dict) -> rx.Component:
+
+def render_meal_item(meal: Meal) -> rx.Component:
     """Renders an individual logged meal row/card."""
     category_colors = {
         "Breakfast": "amber",
@@ -9,7 +14,7 @@ def render_meal_item(meal: dict) -> rx.Component:
         "Dinner": "purple",
         "Snack": "green",
     }
-    
+
     return rx.card(
         rx.flex(
             # Left: Category Icon & Details
@@ -27,22 +32,21 @@ def render_meal_item(meal: dict) -> rx.Component:
                 ),
                 rx.vstack(
                     rx.hstack(
-                        rx.heading(meal["name"], size="3", weight="bold"),
+                        rx.heading(meal.name, size="3", weight="bold"),
                         rx.badge(
-                            meal["category"],
-                            color_scheme=category_colors.get(meal["category"], "gray"),
+                            meal.category,
+                            color_scheme=category_colors.get(meal.category, "gray"),
                             variant="soft",
                             size="1",
                         ),
-                        rx.text(meal["time"], size="1", color_scheme="gray"),
                         align="center",
                         spacing="2",
                     ),
                     rx.hstack(
-                        rx.badge(f"{meal['calories']} kcal", color_scheme="orange", variant="surface", size="1"),
-                        rx.badge(f"{meal['protein']}g P", color_scheme="blue", variant="surface", size="1"),
-                        rx.badge(f"{meal['carbs']}g C", color_scheme="amber", variant="surface", size="1"),
-                        rx.badge(f"{meal['fat']}g F", color_scheme="green", variant="surface", size="1"),
+                        rx.badge(f"{meal.macros.calories} kcal", color_scheme="orange", variant="surface", size="1"),
+                        rx.badge(f"{meal.macros.protein}g P", color_scheme="blue", variant="surface", size="1"),
+                        rx.badge(f"{meal.macros.carbs}g C", color_scheme="amber", variant="surface", size="1"),
+                        rx.badge(f"{meal.macros.fat}g F", color_scheme="green", variant="surface", size="1"),
                         spacing="2",
                         align="center",
                     ),
@@ -59,7 +63,7 @@ def render_meal_item(meal: dict) -> rx.Component:
                     size="1",
                     variant="soft",
                     color_scheme="blue",
-                    on_click=lambda: State.open_edit_meal(meal),
+                    on_click=lambda: MealDialogState.open_edit_meal(meal),
                     style={"cursor": "pointer"},
                 ),
                 rx.button(
@@ -67,7 +71,7 @@ def render_meal_item(meal: dict) -> rx.Component:
                     size="1",
                     variant="soft",
                     color_scheme="red",
-                    on_click=lambda: State.delete_meal(meal["id"]),
+                    on_click=lambda: NutritionState.remove_meal(meal.id),
                     style={"cursor": "pointer"},
                 ),
                 spacing="2",
@@ -101,7 +105,7 @@ def meals_section() -> rx.Component:
                     rx.icon("list-checks", color="var(--orange-9)", size=20),
                     rx.heading("Today's Logged Meals", size="4", weight="bold"),
                     rx.badge(
-                        f"{State.meal_count} meals",
+                        f"{NutritionState.meal_count} meals",
                         color_scheme="gray",
                         variant="soft",
                         radius="full",
@@ -114,7 +118,7 @@ def meals_section() -> rx.Component:
                     "Log Meal",
                     size="2",
                     color_scheme="orange",
-                    on_click=State.open_add_meal,
+                    on_click=MealDialogState.open_add_meal,
                     style={"cursor": "pointer", "border_radius": "8px"},
                 ),
                 justify="between",
@@ -123,7 +127,7 @@ def meals_section() -> rx.Component:
             ),
             rx.divider(size="4"),
             rx.cond(
-                State.meal_count == 0,
+                NutritionState.meal_count == 0,
                 rx.vstack(
                     rx.icon("utensils-crossed", size=36, color="var(--gray-8)"),
                     rx.text("No meals logged yet today.", size="2", weight="bold"),
@@ -138,7 +142,7 @@ def meals_section() -> rx.Component:
                     width="100%",
                 ),
                 rx.vstack(
-                    rx.foreach(State.logged_meals, render_meal_item),
+                    rx.foreach(NutritionState.logged_meals, render_meal_item),
                     spacing="3",
                     width="100%",
                 ),
@@ -160,13 +164,7 @@ def meal_dialog() -> rx.Component:
     """Dialog modal for creating or editing a meal."""
     return rx.dialog.root(
         rx.dialog.content(
-            rx.dialog.title(
-                rx.cond(
-                    State.is_editing_meal,
-                    "Edit Logged Meal",
-                    "Add New Meal",
-                ),
-            ),
+            rx.dialog.title(MealDialogState.modal_title),
             rx.dialog.description(
                 "Enter meal details and macro breakdown.",
                 size="2",
@@ -178,8 +176,8 @@ def meal_dialog() -> rx.Component:
                         rx.text("Meal Name", size="2", weight="bold"),
                         rx.input(
                             placeholder="e.g. Grilled Chicken & Rice",
-                            value=State.meal_form_name,
-                            on_change=State.set_meal_form_name,
+                            value=MealDialogState.name,
+                            on_change=MealDialogState.set_name,
                             size="3",
                             width="100%",
                         ),
@@ -190,8 +188,8 @@ def meal_dialog() -> rx.Component:
                         rx.text("Category", size="2", weight="bold"),
                         rx.select(
                             ["Breakfast", "Lunch", "Dinner", "Snack"],
-                            value=State.meal_form_category,
-                            on_change=State.set_meal_form_category,
+                            value=MealDialogState.category,
+                            on_change=MealDialogState.set_category,
                             size="3",
                             width="100%",
                         ),
@@ -203,8 +201,8 @@ def meal_dialog() -> rx.Component:
                             rx.text("Calories (kcal)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.meal_form_calories,
-                                on_change=State.set_meal_form_calories,
+                                value=MealDialogState.calories,
+                                on_change=MealDialogState.set_calories,
                                 size="3",
                             ),
                             spacing="1",
@@ -213,8 +211,8 @@ def meal_dialog() -> rx.Component:
                             rx.text("Protein (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.meal_form_protein,
-                                on_change=State.set_meal_form_protein,
+                                value=MealDialogState.protein,
+                                on_change=MealDialogState.set_protein,
                                 size="3",
                             ),
                             spacing="1",
@@ -223,8 +221,8 @@ def meal_dialog() -> rx.Component:
                             rx.text("Carbs (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.meal_form_carbs,
-                                on_change=State.set_meal_form_carbs,
+                                value=MealDialogState.carbs,
+                                on_change=MealDialogState.set_carbs,
                                 size="3",
                             ),
                             spacing="1",
@@ -233,8 +231,8 @@ def meal_dialog() -> rx.Component:
                             rx.text("Fat (g)", size="2", weight="bold"),
                             rx.input(
                                 type="number",
-                                value=State.meal_form_fat,
-                                on_change=State.set_meal_form_fat,
+                                value=MealDialogState.fat,
+                                on_change=MealDialogState.set_fat,
                                 size="3",
                             ),
                             spacing="1",
@@ -255,13 +253,13 @@ def meal_dialog() -> rx.Component:
                         "Cancel",
                         variant="soft",
                         color_scheme="gray",
-                        on_click=State.close_meal_modal,
+                        on_click=MealDialogState.close_modal,
                     ),
                 ),
                 rx.button(
                     "Save Meal",
                     color_scheme="orange",
-                    on_click=State.save_meal,
+                    on_click=MealDialogState.save_meal,
                 ),
                 spacing="3",
                 margin_top="4",
@@ -269,6 +267,6 @@ def meal_dialog() -> rx.Component:
             ),
             style={"max_width": "500px"},
         ),
-        open=State.show_meal_modal,
-        on_open_change=State.set_show_meal_modal,
+        open=MealDialogState.show_modal,
+        on_open_change=MealDialogState.set_show_modal,
     )

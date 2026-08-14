@@ -1,5 +1,5 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import NutritionState, UIState
 from kcal_tracker.components.navbar import navbar
 from kcal_tracker.components.dashboard import (
     dashboard_summary,
@@ -20,8 +20,7 @@ def desktop_content() -> rx.Component:
             # App Title & Welcome Subtitle
             rx.flex(
                 rx.vstack(
-                    rx.heading("Daily Calorie & Macro Dashboard",
-                               size="7", weight="bold"),
+                    rx.heading("Daily Calorie & Macro Dashboard", size="7", weight="bold"),
                     rx.text(
                         "Track your calories and protein targets, manage recipes, or log meals effortlessly with AI.",
                         size="3",
@@ -31,13 +30,13 @@ def desktop_content() -> rx.Component:
                 ),
                 rx.hstack(
                     rx.badge(
-                        f"{State.total_calories} / {State.target_calories} Kcal",
+                        f"{NutritionState.total_calories} / {NutritionState.target_calories} Kcal",
                         color_scheme="orange",
                         variant="surface",
                         size="2",
                     ),
                     rx.badge(
-                        f"{State.total_protein} / {State.target_protein}g Protein",
+                        f"{NutritionState.total_protein} / {NutritionState.target_protein}g Protein",
                         color_scheme="blue",
                         variant="surface",
                         size="2",
@@ -120,13 +119,13 @@ def mobile_content() -> rx.Component:
                     ),
                     rx.hstack(
                         rx.badge(
-                            f"{State.total_calories} / {State.target_calories} kcal",
+                            f"{NutritionState.total_calories} / {NutritionState.target_calories} kcal",
                             color_scheme="orange",
                             variant="surface",
                             size="1",
                         ),
                         rx.badge(
-                            f"{State.total_protein} / {State.target_protein}g P",
+                            f"{NutritionState.total_protein} / {NutritionState.target_protein}g P",
                             color_scheme="blue",
                             variant="surface",
                             size="1",
@@ -156,19 +155,19 @@ def mobile_content() -> rx.Component:
 
             # 2. AI Chatbot Section (Follows smaller macros directly)
             rx.cond(
-                (State.active_tab == "chat") | (State.active_tab == "all") | (State.active_tab == "dashboard"),
+                (UIState.active_tab == "chat") | (UIState.active_tab == "all") | (UIState.active_tab == "dashboard"),
                 chat_section(),
             ),
 
             # 3. Logged Meals Section
             rx.cond(
-                (State.active_tab == "meals") | (State.active_tab == "all") | (State.active_tab == "dashboard"),
+                (UIState.active_tab == "meals") | (UIState.active_tab == "all") | (UIState.active_tab == "dashboard"),
                 meals_section(),
             ),
 
             # 4. Saved Recipes Section
             rx.cond(
-                (State.active_tab == "recipes") | (State.active_tab == "all") | (State.active_tab == "dashboard"),
+                (UIState.active_tab == "recipes") | (UIState.active_tab == "all") | (UIState.active_tab == "dashboard"),
                 recipes_section(),
             ),
 

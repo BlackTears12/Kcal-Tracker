@@ -165,11 +165,38 @@ class MealDialogState(rx.State):
     def set_show_modal(self, val: bool):
         self.show_modal = val
 
+    def set_name(self, val: str):
+        self.name = val
+
     def set_category(self, val: str):
         try:
             self.category = MealCategory(val)
         except ValueError:
             self.category = MealCategory.Breakfast
+
+    def set_calories(self, val: str):
+        try:
+            self.calories = float(val)
+        except (ValueError, TypeError):
+            self.calories = 0.0
+
+    def set_protein(self, val: str):
+        try:
+            self.protein = float(val)
+        except (ValueError, TypeError):
+            self.protein = 0.0
+
+    def set_carbs(self, val: str):
+        try:
+            self.carbs = float(val)
+        except (ValueError, TypeError):
+            self.carbs = 0.0
+
+    def set_fat(self, val: str):
+        try:
+            self.fat = float(val)
+        except (ValueError, TypeError):
+            self.fat = 0.0
 
     def open_add_meal(self):
         self.is_editing_meal = False
@@ -242,6 +269,30 @@ class TargetDialogState(rx.State):
 
     def set_show_modal(self, val: bool):
         self.show_modal = val
+
+    def set_target_calories(self, val: str):
+        try:
+            self.target_calories = int(val)
+        except (ValueError, TypeError):
+            pass
+
+    def set_target_protein(self, val: str):
+        try:
+            self.target_protein = int(val)
+        except (ValueError, TypeError):
+            pass
+
+    def set_target_carbs(self, val: str):
+        try:
+            self.target_carbs = int(val)
+        except (ValueError, TypeError):
+            pass
+
+    def set_target_fat(self, val: str):
+        try:
+            self.target_fat = int(val)
+        except (ValueError, TypeError):
+            pass
 
     async def open_modal(self):
         nutrition_state = await self.get_state(NutritionState)

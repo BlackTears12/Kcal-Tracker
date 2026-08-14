@@ -1,36 +1,15 @@
 import reflex as rx
-from kcal_tracker.state import State
+from kcal_tracker.states import (
+    ChatMessage,
+    ChatState,
+)
 
-def render_chat_message(msg: dict) -> rx.Component:
+
+def render_chat_message(msg: ChatMessage) -> rx.Component:
     """Renders a chat message bubble."""
-    is_user = msg["sender"] == "user"
-    
     return rx.flex(
         rx.cond(
-            is_user,
-            # User Message (Right Aligned)
-            rx.flex(
-                rx.vstack(
-                    rx.box(
-                        rx.text(msg["text"], size="2", color="white"),
-                        style={
-                            "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
-                            "padding": "10px 14px",
-                            "border_radius": "16px 16px 4px 16px",
-                            "box_shadow": "0 2px 8px rgba(255, 107, 107, 0.2)",
-                        },
-                    ),
-                    rx.text(msg["timestamp"], size="1", color_scheme="gray", align="right"),
-                    spacing="1",
-                    align="end",
-                    max_width="85%",
-                ),
-                rx.avatar(fallback="U", size="2", color_scheme="orange", variant="solid"),
-                spacing="2",
-                align="start",
-                justify="end",
-                width="100%",
-            ),
+            msg.is_ai,
             # AI Message (Left Aligned)
             rx.flex(
                 rx.avatar(
@@ -44,16 +23,16 @@ def render_chat_message(msg: dict) -> rx.Component:
                     rx.box(
                         rx.vstack(
                             rx.cond(
-                                msg["action"] != "",
+                                msg.action != "",
                                 rx.badge(
-                                    msg["action"],
+                                    msg.action,
                                     color_scheme="purple",
                                     variant="solid",
                                     size="1",
                                     radius="full",
                                 ),
                             ),
-                            rx.markdown(msg["text"]),
+                            rx.markdown(msg.content),
                             spacing="2",
                         ),
                         style={
@@ -63,7 +42,6 @@ def render_chat_message(msg: dict) -> rx.Component:
                             "border_radius": "16px 16px 16px 4px",
                         },
                     ),
-                    rx.text(msg["timestamp"], size="1", color_scheme="gray"),
                     spacing="1",
                     align="start",
                     max_width="88%",
@@ -71,6 +49,28 @@ def render_chat_message(msg: dict) -> rx.Component:
                 spacing="2",
                 align="start",
                 justify="start",
+                width="100%",
+            ),
+            # User Message (Right Aligned)
+            rx.flex(
+                rx.vstack(
+                    rx.box(
+                        rx.text(msg.content, size="2", color="white"),
+                        style={
+                            "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+                            "padding": "10px 14px",
+                            "border_radius": "16px 16px 4px 16px",
+                            "box_shadow": "0 2px 8px rgba(255, 107, 107, 0.2)",
+                        },
+                    ),
+                    spacing="1",
+                    align="end",
+                    max_width="85%",
+                ),
+                rx.avatar(fallback="U", size="2", color_scheme="orange", variant="solid"),
+                spacing="2",
+                align="start",
+                justify="end",
                 width="100%",
             ),
         ),
@@ -119,7 +119,7 @@ def chat_section() -> rx.Component:
                 width="100%",
             ),
             rx.divider(size="4"),
-            
+
             # Quick Action Prompt Chips
             rx.flex(
                 rx.text("Quick Actions:", size="1", weight="bold", color_scheme="gray"),
@@ -130,7 +130,7 @@ def chat_section() -> rx.Component:
                             color_scheme="gray",
                             variant="surface",
                             size="2",
-                            on_click=lambda text=prompt: State.send_chat_prompt(text),
+                            on_click=lambda text=prompt: ChatState.send_quick_prompt(text),
                             style={
                                 "cursor": "pointer",
                                 "transition": "all 0.15s ease",
@@ -150,11 +150,11 @@ def chat_section() -> rx.Component:
                 width="100%",
                 padding_y="1",
             ),
-            
+
             # Chat Messages Scroll Area
             rx.box(
                 rx.vstack(
-                    rx.foreach(State.chat_history, render_chat_message),
+                    rx.foreach(ChatState.history, render_chat_message),
                     spacing="3",
                     width="100%",
                 ),
@@ -175,8 +175,8 @@ def chat_section() -> rx.Component:
                 rx.hstack(
                     rx.input(
                         placeholder="Talk to AI... e.g. 'Log 150g salmon for dinner' or 'Create protein pancake recipe'",
-                        value=State.chat_input,
-                        on_change=State.set_chat_input,
+                        value=ChatState.chat_input,
+                        on_change=ChatState.set_chat_input,
                         size="3",
                         width="100%",
                         style={"border_radius": "10px"},
@@ -193,7 +193,7 @@ def chat_section() -> rx.Component:
                     width="100%",
                     align="center",
                 ),
-                on_submit=State.handle_chat_submit,
+                on_submit=ChatState.handle_submit,
                 width="100%",
             ),
             spacing="3",
