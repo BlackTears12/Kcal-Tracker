@@ -3,6 +3,7 @@ from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass, field
 
+
 @dataclass
 class MacroProfile:
     calories: float = 0.0
@@ -17,6 +18,7 @@ class MealCategory(str, Enum):
     Dinner = "Dinner"
     Snack = "Snack"
 
+
 @dataclass
 class Meal:
     id: int = 0
@@ -26,12 +28,31 @@ class Meal:
     time: datetime = field(default_factory=datetime.now)
 
 
+def get_default_meals() -> list[Meal]:
+    return [
+        Meal(
+            id=1,
+            name="Oatmeal with Berries & Whey",
+            category=MealCategory.Breakfast,
+            macros=MacroProfile(calories=420, protein=28, carbs=58, fat=7),
+            time=datetime.now(),
+        ),
+        Meal(
+            id=2,
+            name="Grilled Chicken Salad & Quinoa",
+            category=MealCategory.Lunch,
+            macros=MacroProfile(calories=550, protein=48, carbs=45, fat=14),
+            time=datetime.now(),
+        ),
+    ]
+
+
 class NutritionState(rx.State):
     target_calories: int = 2200
     target_protein: int = 160
     target_carbs: int = 220
     target_fat: int = 65
-    logged_meals: list[Meal] = []
+    logged_meals: list[Meal] = get_default_meals()
 
     # Computed vars
     @rx.var
@@ -105,6 +126,15 @@ class NutritionState(rx.State):
 
     def update_meal(self, meal: Meal):
         self.logged_meals = [meal if m.id == meal.id else m for m in self.logged_meals]
+
+    def clear_all_meals(self):
+        self.logged_meals = []
+
+    def set_targets(self, calories: int, protein: int, carbs: int, fat: int):
+        self.target_calories = max(500, int(calories))
+        self.target_protein = max(10, int(protein))
+        self.target_carbs = max(10, int(carbs))
+        self.target_fat = max(5, int(fat))
 
     # Utilities
     def next_meal_id(self) -> int:
@@ -201,4 +231,35 @@ class MealDialogState(rx.State):
             nutrition_state.add_meal(new_meal)
 
         self.show_modal = False
-    
+
+
+class TargetDialogState(rx.State):
+    show_modal: bool = False
+    target_calories: int = 2200
+    target_protein: int = 160
+    target_carbs: int = 220
+    target_fat: int = 65
+
+    def set_show_modal(self, val: bool):
+        self.show_modal = val
+
+    async def open_modal(self):
+        nutrition_state = await self.get_state(NutritionState)
+        self.target_calories = nutrition_state.target_calories
+        self.target_protein = nutrition_state.target_protein
+        self.target_carbs = nutrition_state.target_carbs
+        self.target_fat = nutrition_state.target_fat
+        self.show_modal = True
+
+    def close_modal(self):
+        self.show_modal = False
+
+    async def save_targets(self):
+        nutrition_state = await self.get_state(NutritionState)
+        nutrition_state.set_targets(
+            calories=self.target_calories,
+            protein=self.target_protein,
+            carbs=self.target_carbs,
+            fat=self.target_fat,
+        )
+        self.show_modal = False
