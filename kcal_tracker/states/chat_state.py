@@ -84,7 +84,7 @@ class ChatState(rx.State):
 
     def send_quick_prompt(self, prompt_text: str):
         self.chat_input = prompt_text
-        self.handle_submit()
+        return ChatState.handle_submit
 
     def clear_chat(self):
         self.history = []

@@ -78,6 +78,68 @@ def render_chat_message(msg: ChatMessage) -> rx.Component:
     )
 
 
+def render_thinking_indicator() -> rx.Component:
+    """Renders an animated AI thinking / typing indicator bubble."""
+    return rx.flex(
+        rx.avatar(
+            fallback="AI",
+            size="2",
+            color_scheme="purple",
+            variant="soft",
+            style={"border": "1px solid var(--purple-6)"},
+        ),
+        rx.box(
+            rx.hstack(
+                rx.spinner(size="1", color="var(--purple-9)"),
+                rx.text("AI is thinking...", size="2", color="var(--gray-11)", weight="medium"),
+                rx.hstack(
+                    rx.box(
+                        style={
+                            "width": "6px",
+                            "height": "6px",
+                            "border_radius": "50%",
+                            "background": "var(--purple-9)",
+                            "animation": "pulse 1.4s infinite ease-in-out both",
+                        }
+                    ),
+                    rx.box(
+                        style={
+                            "width": "6px",
+                            "height": "6px",
+                            "border_radius": "50%",
+                            "background": "var(--purple-9)",
+                            "animation": "pulse 1.4s infinite ease-in-out both 0.2s",
+                        }
+                    ),
+                    rx.box(
+                        style={
+                            "width": "6px",
+                            "height": "6px",
+                            "border_radius": "50%",
+                            "background": "var(--purple-9)",
+                            "animation": "pulse 1.4s infinite ease-in-out both 0.4s",
+                        }
+                    ),
+                    spacing="1",
+                    align="center",
+                ),
+                spacing="2",
+                align="center",
+            ),
+            style={
+                "background": "var(--gray-3)",
+                "border": "1px solid var(--gray-5)",
+                "padding": "10px 16px",
+                "border_radius": "16px 16px 16px 4px",
+            },
+        ),
+        spacing="2",
+        align="start",
+        justify="start",
+        width="100%",
+    )
+
+
 def chat_section() -> rx.Component:
     """AI Assistant Chatbot Section."""
     quick_prompts = [
@@ -101,10 +163,14 @@ def chat_section() -> rx.Component:
                                     "width": "8px",
                                     "height": "8px",
                                     "border_radius": "50%",
-                                    "background": "#10B981",
+                                    "background": rx.cond(ChatState.is_thinking, "var(--purple-9)", "#10B981"),
                                 }
                             ),
-                            rx.text("Online & Ready", size="1", color_scheme="green"),
+                            rx.text(
+                                rx.cond(ChatState.is_thinking, "Thinking...", "Online & Ready"),
+                                size="1",
+                                color_scheme=rx.cond(ChatState.is_thinking, "purple", "green"),
+                            ),
                             spacing="1",
                             align="center",
                         ),
@@ -113,7 +179,12 @@ def chat_section() -> rx.Component:
                     spacing="2",
                     align="center",
                 ),
-                rx.badge("Natural Language", color_scheme="purple", variant="soft", radius="full"),
+                rx.badge(
+                    rx.cond(ChatState.is_thinking, "Processing...", "Natural Language"),
+                    color_scheme="purple",
+                    variant="soft",
+                    radius="full",
+                ),
                 justify="between",
                 align="center",
                 width="100%",
@@ -155,6 +226,10 @@ def chat_section() -> rx.Component:
             rx.box(
                 rx.vstack(
                     rx.foreach(ChatState.history, render_chat_message),
+                    rx.cond(
+                        ChatState.is_thinking,
+                        render_thinking_indicator(),
+                    ),
                     spacing="3",
                     width="100%",
                 ),
@@ -174,9 +249,14 @@ def chat_section() -> rx.Component:
             rx.form(
                 rx.hstack(
                     rx.input(
-                        placeholder="Talk to AI... e.g. 'Log 150g salmon for dinner' or 'Create protein pancake recipe'",
+                        placeholder=rx.cond(
+                            ChatState.is_thinking,
+                            "AI is thinking...",
+                            "Talk to AI... e.g. 'Log 150g salmon for dinner' or 'Create protein pancake recipe'",
+                        ),
                         value=ChatState.chat_input,
                         on_change=ChatState.set_chat_input,
+                        disabled=ChatState.is_thinking,
                         size="3",
                         width="100%",
                         style={"border_radius": "10px"},
@@ -187,6 +267,8 @@ def chat_section() -> rx.Component:
                         size="3",
                         color_scheme="purple",
                         type="submit",
+                        loading=ChatState.is_thinking,
+                        disabled=ChatState.is_thinking,
                         style={"cursor": "pointer", "border_radius": "10px"},
                     ),
                     spacing="2",

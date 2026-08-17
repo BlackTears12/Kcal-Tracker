@@ -54,10 +54,12 @@ SYS_PROMPT="Help the user by logging their meal if they ask, and respond kindly 
   Do NOT call get_meals unless the user explicitly asks about \
   their previous meals or daily totals."
 
+GEMINI_MODEL="gemini-3.1-flash-lite"
+
 def init_agent():
     global chat_instance, client
     chat_instance = client.aio.chats.create(
-        model="gemini-3.6-flash",
+        model=GEMINI_MODEL,
         config={"tools": [get_meals, add_meals],
                 "system_instruction": SYS_PROMPT},
     )
