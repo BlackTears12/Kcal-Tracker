@@ -1,7 +1,11 @@
 import reflex as rx
 from dataclasses import dataclass, field
 from datetime import datetime
+import kcal_tracker.models.agent as agent
+import asyncio
 
+import kcal_tracker.state_accessor as state_accessor
+from kcal_tracker.states.nutrition_state import Meal, NutritionState
 
 @dataclass
 class ChatMessage:
@@ -65,14 +69,18 @@ class ChatState(rx.State):
         )
         self.history = self.history + [ai_msg]
 
-    def handle_submit(self):
+    async def handle_submit(self):
         if not self.chat_input.strip():
             return
         user_text = self.chat_input.strip()
         self.chat_input = ""
         self.add_user_message(user_text)
         self.is_thinking = True
-        # AI processing will be hooked up here (e.g. by NutritionAgent)
+        yield
+        response = await agent.send_prompt(user_text)
+        self.is_thinking = False
+        if response:
+          self.add_ai_message(response)
 
     def send_quick_prompt(self, prompt_text: str):
         self.chat_input = prompt_text

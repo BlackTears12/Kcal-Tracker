@@ -119,7 +119,13 @@ class NutritionState(rx.State):
 
     # Event handlers
     def add_meal(self, meal: Meal):
+        meal.id = self.next_meal_id()
         self.logged_meals = self.logged_meals + [meal]
+
+    def add_meal_list(self, meals: list[Meal]):
+        for m in meals:
+            m.id = self.next_meal_id()
+        self.logged_meals = self.logged_meals + meals
 
     def remove_meal(self, id: int):
         self.logged_meals = [m for m in self.logged_meals if m.id != id]

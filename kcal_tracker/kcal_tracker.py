@@ -2,7 +2,7 @@ import reflex as rx
 from reflex_google_auth import google_login, google_oauth_provider, require_google_login
 from kcal_tracker.models.google_login import UserState
 import kcal_tracker.content as content
-
+import kcal_tracker.models.agent as agent
 
 def login_content() -> rx.Component:
     return rx.vstack(
@@ -31,6 +31,7 @@ def index() -> rx.Component:
     )
 
 
+agent.init_agent()
 app = rx.App()
 app.add_page(
     index,
