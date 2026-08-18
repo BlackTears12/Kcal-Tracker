@@ -1,6 +1,6 @@
 import reflex as rx
-from datetime import datetime
-from kcal_tracker.models.data_repository import DataRepository
+from datetime import datetime, date, timedelta
+import kcal_tracker.models.data_repository as data_repository
 from kcal_tracker.data.meal import *
 
 class NutritionState(rx.State):
@@ -9,6 +9,7 @@ class NutritionState(rx.State):
     target_carbs: int = 220
     target_fat: int = 65
     logged_meals: list[Meal] = []
+    date_context: date = date.today()
     
     used_meal_ids: set[int] = set()
     user_id: str = ""
@@ -69,6 +70,32 @@ class NutritionState(rx.State):
         return min(100, max(0, pct))
 
     @rx.var
+    def formatted_date(self) -> str:
+        today = date.today()
+        if self.date_context == today:
+            return f"Today, {self.date_context.strftime('%b %d')}"
+        elif self.date_context == today - timedelta(days=1):
+            return f"Yesterday, {self.date_context.strftime('%b %d')}"
+        elif self.date_context == today + timedelta(days=1):
+            return f"Tomorrow, {self.date_context.strftime('%b %d')}"
+        return self.date_context.strftime("%a, %b %d, %Y")
+
+    @rx.var
+    def short_date(self) -> str:
+        today = date.today()
+        if self.date_context == today:
+            return "Today"
+        elif self.date_context == today - timedelta(days=1):
+            return "Yesterday"
+        elif self.date_context == today + timedelta(days=1):
+            return "Tomorrow"
+        return self.date_context.strftime("%b %d")
+
+    @rx.var
+    def is_today(self) -> bool:
+        return self.date_context == date.today()
+
+    @rx.var
     def is_calorie_over(self) -> bool:
         return self.total_calories > self.target_calories
 
@@ -83,9 +110,7 @@ class NutritionState(rx.State):
         if self.user_id == user_id:
             return
         self.user_id = user_id
-        self.logged_meals = DataRepository(user_id).load_meals()
-        for m in self.logged_meals:
-          m.id = self.assign_meal_id()
+        self.view_date(date.today())
 
     async def add_meal(self, meal: Meal):
         meal.id = self.assign_meal_id()
@@ -115,6 +140,21 @@ class NutritionState(rx.State):
         self.target_carbs = max(10, int(carbs))
         self.target_fat = max(5, int(fat))
 
+    def view_next_day(self):
+        self.view_date(self.date_context + timedelta(days=1))
+
+    def view_previous_day(self):
+        self.view_date(self.date_context - timedelta(days=1))
+
+    def view_today(self):
+        self.view_date(date.today())
+
+    def view_date(self, new_date: date):
+        self.date_context = new_date
+        self.logged_meals = data_repository.load_meals(self.user_id,self.date_context)
+        for m in self.logged_meals:
+            m.id = self.assign_meal_id()
+
     # Utilities
     def assign_meal_id(self) -> int:
         new_id = 1
@@ -124,7 +164,7 @@ class NutritionState(rx.State):
         return new_id
 
     async def _save_meals(self):
-        DataRepository(self.user_id).save_meals(self.logged_meals)
+        data_repository.save_meals(self.user_id,self.logged_meals,self.date_context)
 
 
 class MealDialogState(rx.State):

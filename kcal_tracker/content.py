@@ -5,6 +5,8 @@ from kcal_tracker.components.dashboard import (
     dashboard_summary,
     mobile_macro_summary,
     mobile_nav_pills,
+    desktop_date_navigator,
+    mobile_date_navigator,
     target_dialog,
 )
 from kcal_tracker.components.meals import meals_section, meal_dialog
@@ -49,6 +51,9 @@ def desktop_content() -> rx.Component:
                 width="100%",
                 padding_y="2",
             ),
+
+            # Desktop Date Navigator Bar
+            desktop_date_navigator(),
 
             # Main Grid: Left = Gauges & Lists (Meals, Recipes), Right = AI Chatbot
             rx.grid(
@@ -146,6 +151,9 @@ def mobile_content() -> rx.Component:
                 },
                 width="100%",
             ),
+
+            # Mobile Date Navigator Bar
+            mobile_date_navigator(),
 
             # 1. Smaller Kcal & Protein Macros Summary
             mobile_macro_summary(),

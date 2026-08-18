@@ -103,7 +103,15 @@ def meals_section() -> rx.Component:
             rx.hstack(
                 rx.hstack(
                     rx.icon("list-checks", color="var(--orange-9)", size=20),
-                    rx.heading("Today's Logged Meals", size="4", weight="bold"),
+                    rx.heading(
+                        rx.cond(
+                            NutritionState.is_today,
+                            "Today's Logged Meals",
+                            f"Logged Meals ({NutritionState.short_date})",
+                        ),
+                        size="4",
+                        weight="bold",
+                    ),
                     rx.badge(
                         f"{NutritionState.meal_count} meals",
                         color_scheme="gray",
@@ -130,7 +138,15 @@ def meals_section() -> rx.Component:
                 NutritionState.meal_count == 0,
                 rx.vstack(
                     rx.icon("utensils-crossed", size=36, color="var(--gray-8)"),
-                    rx.text("No meals logged yet today.", size="2", weight="bold"),
+                    rx.text(
+                        rx.cond(
+                            NutritionState.is_today,
+                            "No meals logged yet today.",
+                            "No meals logged for this date.",
+                        ),
+                        size="2",
+                        weight="bold",
+                    ),
                     rx.text(
                         "Click '+ Log Meal' or chat with the AI Assistant to log your food!",
                         size="2",

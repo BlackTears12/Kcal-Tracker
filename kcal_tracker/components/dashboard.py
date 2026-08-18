@@ -1,5 +1,6 @@
 import reflex as rx
 from kcal_tracker.states import (
+    NutritionState,
     TargetDialogState,
     MealDialogState,
     UIState,
@@ -12,6 +13,127 @@ from kcal_tracker.components.gauge import (
     mobile_protein_gauge,
     mobile_macro_progress_cards,
 )
+
+
+def desktop_date_navigator() -> rx.Component:
+    """Desktop date switcher card with previous/next day buttons calling view_previous_day and view_next_day."""
+    return rx.card(
+        rx.flex(
+            rx.button(
+                rx.icon("chevron-left", size=18),
+                "Previous Day",
+                size="2",
+                variant="soft",
+                color_scheme="gray",
+                on_click=NutritionState.view_previous_day,
+                style={"cursor": "pointer", "border_radius": "8px"},
+            ),
+            rx.hstack(
+                rx.box(
+                    rx.icon("calendar", size=18, color="var(--orange-9)"),
+                    style={
+                        "background": "var(--orange-3)",
+                        "padding": "6px",
+                        "border_radius": "8px",
+                        "display": "flex",
+                        "align_items": "center",
+                        "justify_content": "center",
+                    },
+                ),
+                rx.text(
+                    NutritionState.formatted_date,
+                    size="3",
+                    weight="bold",
+                ),
+                rx.cond(
+                    ~NutritionState.is_today,
+                    rx.button(
+                        "Today",
+                        size="1",
+                        variant="surface",
+                        color_scheme="orange",
+                        on_click=NutritionState.view_today,
+                        style={"cursor": "pointer", "border_radius": "6px"},
+                    ),
+                ),
+                spacing="3",
+                align="center",
+            ),
+            rx.button(
+                "Next Day",
+                rx.icon("chevron-right", size=18),
+                size="2",
+                variant="soft",
+                color_scheme="gray",
+                on_click=NutritionState.view_next_day,
+                style={"cursor": "pointer", "border_radius": "8px"},
+            ),
+            justify="between",
+            align="center",
+            width="100%",
+        ),
+        size="2",
+        style={
+            "background": "var(--gray-2)",
+            "border": "1px solid var(--gray-4)",
+            "border_radius": "14px",
+        },
+        width="100%",
+    )
+
+
+def mobile_date_navigator() -> rx.Component:
+    """Mobile date switcher card with previous/next day buttons calling view_previous_day and view_next_day."""
+    return rx.card(
+        rx.flex(
+            rx.button(
+                rx.icon("chevron-left", size=16),
+                "Prev",
+                size="1",
+                variant="soft",
+                color_scheme="gray",
+                on_click=NutritionState.view_previous_day,
+                style={"cursor": "pointer", "border_radius": "6px"},
+            ),
+            rx.hstack(
+                rx.icon("calendar", size=15, color="var(--orange-9)"),
+                rx.text(NutritionState.formatted_date, size="2", weight="bold"),
+                rx.cond(
+                    ~NutritionState.is_today,
+                    rx.button(
+                        "Today",
+                        size="1",
+                        variant="surface",
+                        color_scheme="orange",
+                        on_click=NutritionState.view_today,
+                        style={"cursor": "pointer", "border_radius": "4px", "padding": "2px 6px", "height": "auto"},
+                    ),
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.button(
+                "Next",
+                rx.icon("chevron-right", size=16),
+                size="1",
+                variant="soft",
+                color_scheme="gray",
+                on_click=NutritionState.view_next_day,
+                style={"cursor": "pointer", "border_radius": "6px"},
+            ),
+            justify="between",
+            align="center",
+            width="100%",
+        ),
+        size="1",
+        style={
+            "background": "var(--gray-2)",
+            "border": "1px solid var(--gray-4)",
+            "border_radius": "12px",
+            "padding": "8px 12px",
+        },
+        width="100%",
+    )
 
 
 def dashboard_summary() -> rx.Component:
