@@ -9,6 +9,7 @@ class NutritionState(rx.State):
     target_carbs: int = 220
     target_fat: int = 65
     logged_meals: list[Meal] = []
+    
     used_meal_ids: set[int] = set()
     user_id: str = ""
 
@@ -83,6 +84,8 @@ class NutritionState(rx.State):
             return
         self.user_id = user_id
         self.logged_meals = DataRepository(user_id).load_meals()
+        for m in self.logged_meals:
+          m.id = self.assign_meal_id()
 
     async def add_meal(self, meal: Meal):
         meal.id = self.assign_meal_id()
@@ -189,6 +192,8 @@ class MealDialogState(rx.State):
         self.show_modal = True
 
     def open_edit_meal(self, meal: Meal):
+        if isinstance(meal, dict):
+            meal = Meal(**meal)
         self.is_editing_meal = True
         self.meal_id = meal.id
         self.name = meal.name
@@ -224,17 +229,15 @@ class MealDialogState(rx.State):
                 macros=macros,
                 time=meal_time,
             )
-            nutrition_state.update_meal(updated_meal)
+            await nutrition_state.update_meal(updated_meal)
         else:
-            new_id = nutrition_state.next_meal_id()
-            new_meal = Meal(
-                id=new_id,
+            new_meal = Meal(                
                 name=self.name.strip(),
                 category=self.category,
                 macros=macros,
                 time=datetime.now(),
             )
-            nutrition_state.add_meal(new_meal)
+            await nutrition_state.add_meal(new_meal)
 
         self.show_modal = False
 

@@ -24,3 +24,17 @@ class Meal:
     category: MealCategory = MealCategory.Breakfast
     macros: MacroProfile = field(default_factory=MacroProfile)
     time: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self):
+        if isinstance(self.macros, dict):
+            self.macros = MacroProfile(**self.macros)
+        if isinstance(self.category, str):
+            try:
+                self.category = MealCategory(self.category)
+            except ValueError:
+                self.category = MealCategory.Breakfast
+        if isinstance(self.time, str):
+            try:
+                self.time = datetime.fromisoformat(self.time)
+            except ValueError:
+                self.time = datetime.now()

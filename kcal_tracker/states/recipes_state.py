@@ -12,6 +12,10 @@ class Ingredient:
     macros_per_100g: MacroProfile = field(default_factory=MacroProfile)
     weight_g: float = 0.0
 
+    def __post_init__(self):
+        if isinstance(self.macros_per_100g, dict):
+            self.macros_per_100g = MacroProfile(**self.macros_per_100g)
+
     def calories(self) -> float:
         return round(self.macros_per_100g.calories * (self.weight_g / 100.0), 1)
 
@@ -47,6 +51,10 @@ class Recipe:
 
     def __post_init__(self):
         if self.ingredients:
+            self.ingredients = [
+                Ingredient(**ing) if isinstance(ing, dict) else ing
+                for ing in self.ingredients
+            ]
             if not self.ingredients_text:
                 self.ingredients_text = ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in self.ingredients)
             if self.calories == 0.0:
@@ -181,7 +189,9 @@ class RecipesState(rx.State):
             new_id += 1
         return new_id
 
-    async def log_recipe_as_meal(self, recipe: Recipe, category: MealCategory = MealCategory.Lunch):
+    async def log_recipe_as_meal(self, recipe: Recipe):
+        if isinstance(recipe, dict):
+            recipe = Recipe(**recipe)
         nutrition_state = await self.get_state(NutritionState)
         new_meal = Meal(            
             name=recipe.name,
@@ -189,7 +199,7 @@ class RecipesState(rx.State):
             macros=recipe.macros_per_serving(),
             time=datetime.now(),
         )
-        nutrition_state.add_meal(new_meal)
+        await nutrition_state.add_meal(new_meal)
 
 
 class RecipeDialogState(rx.State):
@@ -264,6 +274,8 @@ class RecipeDialogState(rx.State):
         self.show_modal = True
 
     def open_edit_recipe(self, recipe: Recipe):
+        if isinstance(recipe, dict):
+            recipe = Recipe(**recipe)
         self.is_editing_recipe = True
         self.recipe_id = recipe.id
         self.name = recipe.name
