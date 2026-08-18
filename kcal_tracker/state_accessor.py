@@ -10,6 +10,8 @@ def init(context: rx.State):
     global _context
     _context = context
 
+async def get_user():
+    return _context
 
 async def get_nutrition_state() -> NutritionState:
     return await _context.get_state(NutritionState)

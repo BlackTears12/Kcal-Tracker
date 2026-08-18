@@ -77,10 +77,20 @@ class ChatState(rx.State):
         self.add_user_message(user_text)
         self.is_thinking = True
         yield
-        response = await agent.send_prompt(user_text)
-        self.is_thinking = False
-        if response:
-          self.add_ai_message(response)
+        try:
+            result = await asyncio.wait_for(agent.send_prompt(user_text), timeout=60.0)
+            async with self:
+                response = result
+                if response:
+                    self.add_ai_message(response)
+        except asyncio.TimeoutError:
+            async with self:
+                response = "Request timed out. No response received within 1 minute."
+                print(response)
+        finally:
+            # 3. Always reset is_thinking back to False
+            async with self:
+                self.is_thinking = False        
 
     def send_quick_prompt(self, prompt_text: str):
         self.chat_input = prompt_text

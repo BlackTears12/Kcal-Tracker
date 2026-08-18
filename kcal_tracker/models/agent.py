@@ -1,7 +1,7 @@
 from google import genai
 from pydantic import BaseModel, Field
 from typing import cast
-from kcal_tracker.states.nutrition_state import Meal, MealCategory, NutritionState, MacroProfile
+from kcal_tracker.data.meal import *
 import kcal_tracker.state_accessor as state_accessor
 
 
@@ -44,7 +44,7 @@ async def add_meals(meals: list[MealSchema]):
     """Register a list of meals eaten by the user today"""
     print("add_meals!!!")
     nutrition_state = await state_accessor.get_nutrition_state()
-    nutrition_state.add_meal_list([m.to_app_meal() for m in meals])
+    await nutrition_state.add_meal_list([m.to_app_meal() for m in meals])
 
 chat_instance = None
 client = genai.Client()

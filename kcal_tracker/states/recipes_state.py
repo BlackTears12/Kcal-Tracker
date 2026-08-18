@@ -2,7 +2,8 @@ import reflex as rx
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass, field
-from kcal_tracker.states.nutrition_state import NutritionState, MacroProfile, Meal, MealCategory
+from kcal_tracker.data.meal import *
+from kcal_tracker.states.nutrition_state import NutritionState
 
 
 @dataclass
@@ -42,7 +43,7 @@ class Recipe:
     calories: float = 0.0
     protein: float = 0.0
     carbs: float = 0.0
-    fat: float = 0.0
+    fat: float = 0.0    
 
     def __post_init__(self):
         if self.ingredients:
@@ -182,8 +183,7 @@ class RecipesState(rx.State):
 
     async def log_recipe_as_meal(self, recipe: Recipe, category: MealCategory = MealCategory.Lunch):
         nutrition_state = await self.get_state(NutritionState)
-        new_meal = Meal(
-            id=nutrition_state.next_meal_id(),
+        new_meal = Meal(            
             name=recipe.name,
             category=category,
             macros=recipe.macros_per_serving(),

@@ -1,58 +1,16 @@
 import reflex as rx
-from enum import Enum
 from datetime import datetime
-from dataclasses import dataclass, field
-
-
-@dataclass
-class MacroProfile:
-    calories: float = 0.0
-    protein: float = 0.0
-    carbs: float = 0.0
-    fat: float = 0.0
-
-
-class MealCategory(str, Enum):
-    Breakfast = "Breakfast"
-    Lunch = "Lunch"
-    Dinner = "Dinner"
-    Snack = "Snack"
-
-
-@dataclass
-class Meal:
-    id: int = 0
-    name: str = ""
-    category: MealCategory = MealCategory.Breakfast
-    macros: MacroProfile = field(default_factory=MacroProfile)
-    time: datetime = field(default_factory=datetime.now)
-
-
-def get_default_meals() -> list[Meal]:
-    return [
-        Meal(
-            id=1,
-            name="Oatmeal with Berries & Whey",
-            category=MealCategory.Breakfast,
-            macros=MacroProfile(calories=420, protein=28, carbs=58, fat=7),
-            time=datetime.now(),
-        ),
-        Meal(
-            id=2,
-            name="Grilled Chicken Salad & Quinoa",
-            category=MealCategory.Lunch,
-            macros=MacroProfile(calories=550, protein=48, carbs=45, fat=14),
-            time=datetime.now(),
-        ),
-    ]
-
+from kcal_tracker.models.data_repository import DataRepository
+from kcal_tracker.data.meal import *
 
 class NutritionState(rx.State):
     target_calories: int = 2200
     target_protein: int = 160
     target_carbs: int = 220
     target_fat: int = 65
-    logged_meals: list[Meal] = get_default_meals()
+    logged_meals: list[Meal] = []
+    used_meal_ids: set[int] = set()
+    user_id: str = ""
 
     # Computed vars
     @rx.var
@@ -118,20 +76,32 @@ class NutritionState(rx.State):
         return len(self.logged_meals)
 
     # Event handlers
-    def add_meal(self, meal: Meal):
-        meal.id = self.next_meal_id()
+    def on_login(self, user_id: str):
+        if not user_id or user_id == "unknown":
+            return
+        if self.user_id == user_id:
+            return
+        self.user_id = user_id
+        self.logged_meals = DataRepository(user_id).load_meals()
+
+    async def add_meal(self, meal: Meal):
+        meal.id = self.assign_meal_id()
         self.logged_meals = self.logged_meals + [meal]
+        await self._save_meals()
 
-    def add_meal_list(self, meals: list[Meal]):
+    async def add_meal_list(self, meals: list[Meal]):
         for m in meals:
-            m.id = self.next_meal_id()
+            m.id = self.assign_meal_id()
         self.logged_meals = self.logged_meals + meals
+        await self._save_meals()
 
-    def remove_meal(self, id: int):
-        self.logged_meals = [m for m in self.logged_meals if m.id != id]
+    async def remove_meal(self, id: int):
+        self.logged_meals = [m for m in self.logged_meals if m.id != id]        
+        await self._save_meals()
 
-    def update_meal(self, meal: Meal):
+    async def update_meal(self, meal: Meal):
         self.logged_meals = [meal if m.id == meal.id else m for m in self.logged_meals]
+        await self._save_meals()
 
     def clear_all_meals(self):
         self.logged_meals = []
@@ -143,12 +113,15 @@ class NutritionState(rx.State):
         self.target_fat = max(5, int(fat))
 
     # Utilities
-    def next_meal_id(self) -> int:
-        existing_ids = {m.id for m in self.logged_meals}
+    def assign_meal_id(self) -> int:
         new_id = 1
-        while new_id in existing_ids:
+        while new_id in self.used_meal_ids:
             new_id += 1
+        self.used_meal_ids.add(new_id)
         return new_id
+
+    async def _save_meals(self):
+        DataRepository(self.user_id).save_meals(self.logged_meals)
 
 
 class MealDialogState(rx.State):
