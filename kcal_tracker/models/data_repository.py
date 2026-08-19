@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 STORAGE_DIR="./data"
 
-MEAL_FIELD_NAMES = ["name","category","calories","protein_g","carbs_g","fat_g","date"]
+MEAL_FIELD_NAMES = ["name","category","calories","protein_g","carbs_g","fat_g","weight","date"]
 PROFILE_FIELD_NAMES = ["target_kcal","target_protein","target_carbs", "target_fat"]
 
 @dataclass
@@ -39,7 +39,8 @@ def save_data_cache():
                 "protein_g": m.macros.protein,
                 "carbs_g": m.macros.carbs,
                 "fat_g": m.macros.fat,
-                "date": m.date.isoformat()
+                "date": m.date.isoformat(),
+                "weight": m.weight,
             })
 
 def load_data_cache(user_id: str) -> DataCache:
@@ -57,7 +58,8 @@ def load_data_cache(user_id: str) -> DataCache:
                 category=MealCategory(row["category"]),
                 macros=MacroProfile(float(row["calories"]), float(row["protein_g"]),
                                     float(row["carbs_g"]), float(row["fat_g"])),
-                date=date_val
+                date=date_val,
+                weight=float(row["weight"]),
             )
             cache.meal_data[date_val].append(meal)
     return cache

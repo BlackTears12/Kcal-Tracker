@@ -43,6 +43,7 @@ def render_meal_item(meal: Meal) -> rx.Component:
                         spacing="2",
                     ),
                     rx.hstack(
+                        rx.badge(f"{meal.weight}g", color_scheme="gray", variant="surface", size="1"),
                         rx.badge(f"{meal.macros.calories} kcal", color_scheme="orange", variant="surface", size="1"),
                         rx.badge(f"{meal.macros.protein}g P", color_scheme="blue", variant="surface", size="1"),
                         rx.badge(f"{meal.macros.carbs}g C", color_scheme="amber", variant="surface", size="1"),
@@ -200,17 +201,44 @@ def meal_dialog() -> rx.Component:
                         width="100%",
                         spacing="1",
                     ),
-                    rx.vstack(
-                        rx.text("Category", size="2", weight="bold"),
-                        rx.select(
-                            ["Breakfast", "Lunch", "Dinner", "Snack"],
-                            value=MealDialogState.category,
-                            on_change=MealDialogState.set_category,
-                            size="3",
+                    rx.grid(
+                        rx.vstack(
+                            rx.text("Category", size="2", weight="bold"),
+                            rx.select(
+                                ["Breakfast", "Lunch", "Dinner", "Snack"],
+                                value=MealDialogState.category,
+                                on_change=MealDialogState.set_category,
+                                size="3",
+                                width="100%",
+                            ),
                             width="100%",
+                            spacing="1",
                         ),
+                        rx.vstack(
+                            rx.text("Weight (g)", size="2", weight="bold"),
+                            rx.input(
+                                type="number",
+                                placeholder="e.g. 200",
+                                value=MealDialogState.weight,
+                                on_change=MealDialogState.set_weight,
+                                size="3",
+                                width="100%",
+                            ),
+                            width="100%",
+                            spacing="1",
+                        ),
+                        columns=rx.breakpoints(initial="1", sm="2"),
+                        spacing="3",
                         width="100%",
-                        spacing="1",
+                    ),
+                    rx.cond(
+                        MealDialogState.is_editing_meal,
+                        rx.checkbox(
+                            "Scale macros for new weight",
+                            checked=MealDialogState.scale_macros,
+                            on_change=MealDialogState.set_scale_macros,
+                            size="2",
+                        ),
                     ),
                     rx.grid(
                         rx.vstack(

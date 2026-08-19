@@ -197,10 +197,12 @@ class MealDialogState(rx.State):
     meal_id: int = 0
     name: str = ""
     category: MealCategory = MealCategory.Breakfast
+    weight: float = 0.0
     calories: float = 0.0
     protein: float = 0.0
     carbs: float = 0.0
     fat: float = 0.0
+    scale_macros: bool = False
 
     @rx.var
     def modal_title(self) -> str:
@@ -217,6 +219,15 @@ class MealDialogState(rx.State):
             self.category = MealCategory(val)
         except ValueError:
             self.category = MealCategory.Breakfast
+
+    def set_weight(self, val: str):
+        try:
+            self.weight = float(val)
+        except (ValueError, TypeError):
+            self.weight = 0.0
+
+    def set_scale_macros(self, val: bool):
+        self.scale_macros = val
 
     def set_calories(self, val: str):
         try:
@@ -247,10 +258,12 @@ class MealDialogState(rx.State):
         self.meal_id = 0
         self.name = ""
         self.category = MealCategory.Breakfast
+        self.weight = 0.0
         self.calories = 0.0
         self.protein = 0.0
         self.carbs = 0.0
         self.fat = 0.0
+        self.scale_macros = False
         self.show_modal = True
 
     def open_edit_meal(self, meal: Meal):
@@ -260,10 +273,12 @@ class MealDialogState(rx.State):
         self.meal_id = meal.id
         self.name = meal.name
         self.category = meal.category
+        self.weight = meal.weight
         self.calories = meal.macros.calories
         self.protein = meal.macros.protein
         self.carbs = meal.macros.carbs
         self.fat = meal.macros.fat
+        self.scale_macros = False
         self.show_modal = True
 
     def close_modal(self):
@@ -284,13 +299,21 @@ class MealDialogState(rx.State):
         if self.is_editing_meal:
             existing = next((m for m in nutrition_state.logged_meals if m.id == self.meal_id), None)
             meal_date = existing.date if existing else nutrition_state.date_context
+
             updated_meal = Meal(
                 id=self.meal_id,
                 name=self.name.strip(),
                 category=self.category,
                 macros=macros,
                 date=meal_date,
+                weight=float(self.weight),
             )
+
+            # if editing a meal with scale macros use the original weight as base for the scaling
+            if existing and self.weight != existing.weight and self.scale_macros:
+                updated_meal.weight = existing.weight
+                updated_meal = updated_meal.scale_weight(float(self.weight))
+                
             await nutrition_state.update_meal(updated_meal)
         else:
             new_meal = Meal(                
@@ -298,6 +321,7 @@ class MealDialogState(rx.State):
                 category=self.category,
                 macros=macros,
                 date=nutrition_state.date_context,
+                weight=float(self.weight),
             )
             await nutrition_state.add_meal(new_meal)
 

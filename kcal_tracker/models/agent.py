@@ -11,6 +11,7 @@ class MealSchema(BaseModel):
     protein_g: float = Field(description="grams of protein contained in the meal")
     carbs_g: float = Field(description="grams of carbs contained in the meal")
     fat_g: float = Field(description="grams of fat contained in the meal")
+    weight: float = Field(default=0.0, description="weight in grams of the meal")
 
     @classmethod
     def from_app_meal(cls, meal: Meal):
@@ -18,7 +19,8 @@ class MealSchema(BaseModel):
                    calories=meal.macros.calories,
                    protein_g=meal.macros.protein,
                    carbs_g=meal.macros.carbs,
-                   fat_g=meal.macros.fat)
+                   fat_g=meal.macros.fat,
+                   weight=meal.weight)
       
     def to_app_meal(self) -> Meal:
       return Meal(
@@ -26,7 +28,8 @@ class MealSchema(BaseModel):
           category=MealCategory.Breakfast,
           macros = MacroProfile(
               self.calories, self.protein_g, self.carbs_g, self.fat_g
-          )
+          ),
+          weight=self.weight
       )
 
 
