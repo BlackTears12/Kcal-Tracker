@@ -2,14 +2,12 @@ import reflex as rx
 from datetime import datetime, date, timedelta
 import kcal_tracker.models.data_repository as data_repository
 from kcal_tracker.data.meal import *
+from kcal_tracker.data.profiledata import ProfileData
 
 class NutritionState(rx.State):
-    target_calories: int = 2200
-    target_protein: int = 160
-    target_carbs: int = 220
-    target_fat: int = 65
     logged_meals: list[Meal] = []
     date_context: date = date.today()
+    profile_data: ProfileData = ProfileData()
     
     used_meal_ids: set[int] = set()
     user_id: str = ""
@@ -32,41 +30,57 @@ class NutritionState(rx.State):
         return round(sum(m.macros.fat for m in self.logged_meals))
 
     @rx.var
+    def target_calories(self) -> int:
+        return round(self.profile_data.targets.calories)
+
+    @rx.var
+    def target_protein(self) -> int:
+        return round(self.profile_data.targets.protein)
+
+    @rx.var
+    def target_carbs(self) -> int:
+        return round(self.profile_data.targets.carbs)
+
+    @rx.var
+    def target_fat(self) -> int:
+        return round(self.profile_data.targets.fat)
+
+    @rx.var
     def remaining_calories(self) -> int:
-        rem = self.target_calories - self.total_calories
-        return max(0, rem)
+        rem = self.profile_data.targets.calories - self.total_calories
+        return max(0, round(rem))
 
     @rx.var
     def remaining_protein(self) -> int:
-        rem = self.target_protein - self.total_protein
-        return max(0, rem)
+        rem = self.profile_data.targets.protein - self.total_protein
+        return max(0, round(rem))
 
     @rx.var
     def calorie_percentage(self) -> int:
-        if self.target_calories <= 0:
+        if self.profile_data.targets.calories <= 0:
             return 0
-        pct = int((self.total_calories / self.target_calories) * 100)
+        pct = int((self.total_calories / self.profile_data.targets.calories) * 100)
         return min(100, max(0, pct))
 
     @rx.var
     def protein_percentage(self) -> int:
-        if self.target_protein <= 0:
+        if self.profile_data.targets.protein <= 0:
             return 0
-        pct = int((self.total_protein / self.target_protein) * 100)
+        pct = int((self.total_protein / self.profile_data.targets.protein) * 100)
         return min(100, max(0, pct))
 
     @rx.var
     def carbs_percentage(self) -> int:
-        if self.target_carbs <= 0:
+        if self.profile_data.targets.carbs <= 0:
             return 0
-        pct = int((self.total_carbs / self.target_carbs) * 100)
+        pct = int((self.total_carbs / self.profile_data.targets.carbs) * 100)
         return min(100, max(0, pct))
 
     @rx.var
     def fat_percentage(self) -> int:
-        if self.target_fat <= 0:
+        if self.profile_data.targets.fat <= 0:
             return 0
-        pct = int((self.total_fat / self.target_fat) * 100)
+        pct = int((self.total_fat / self.profile_data.targets.fat) * 100)
         return min(100, max(0, pct))
 
     @rx.var
@@ -97,7 +111,7 @@ class NutritionState(rx.State):
 
     @rx.var
     def is_calorie_over(self) -> bool:
-        return self.total_calories > self.target_calories
+        return self.total_calories > self.profile_data.targets.calories
 
     @rx.var
     def meal_count(self) -> int:
@@ -110,16 +124,19 @@ class NutritionState(rx.State):
         if self.user_id == user_id:
             return
         self.user_id = user_id
+        self.profile_data = data_repository.load_profile_data(self.user_id)
         self.view_date(date.today())
 
     async def add_meal(self, meal: Meal):
         meal.id = self.assign_meal_id()
+        meal.date = self.date_context
         self.logged_meals = self.logged_meals + [meal]
         await self._save_meals()
 
     async def add_meal_list(self, meals: list[Meal]):
         for m in meals:
             m.id = self.assign_meal_id()
+            m.date = self.date_context
         self.logged_meals = self.logged_meals + meals
         await self._save_meals()
 
@@ -134,11 +151,16 @@ class NutritionState(rx.State):
     def clear_all_meals(self):
         self.logged_meals = []
 
-    def set_targets(self, calories: int, protein: int, carbs: int, fat: int):
-        self.target_calories = max(500, int(calories))
-        self.target_protein = max(10, int(protein))
-        self.target_carbs = max(10, int(carbs))
-        self.target_fat = max(5, int(fat))
+    def set_targets(self, calories: float, protein: float, carbs: float, fat: float):
+        self.profile_data = ProfileData(
+            targets=MacroProfile(
+                calories=max(500.0, float(calories)),
+                protein=max(10.0, float(protein)),
+                carbs=max(10.0, float(carbs)),
+                fat=max(5.0, float(fat)),
+            )
+        )
+        data_repository.save_profile_data(self.user_id,self.profile_data)
 
     def view_next_day(self):
         self.view_date(self.date_context + timedelta(days=1))
@@ -261,13 +283,13 @@ class MealDialogState(rx.State):
 
         if self.is_editing_meal:
             existing = next((m for m in nutrition_state.logged_meals if m.id == self.meal_id), None)
-            meal_time = existing.time if existing else datetime.now()
+            meal_date = existing.date if existing else nutrition_state.date_context
             updated_meal = Meal(
                 id=self.meal_id,
                 name=self.name.strip(),
                 category=self.category,
                 macros=macros,
-                time=meal_time,
+                date=meal_date,
             )
             await nutrition_state.update_meal(updated_meal)
         else:
@@ -275,7 +297,7 @@ class MealDialogState(rx.State):
                 name=self.name.strip(),
                 category=self.category,
                 macros=macros,
-                time=datetime.now(),
+                date=nutrition_state.date_context,
             )
             await nutrition_state.add_meal(new_meal)
 
@@ -284,44 +306,93 @@ class MealDialogState(rx.State):
 
 class TargetDialogState(rx.State):
     show_modal: bool = False
-    target_calories: int = 2200
-    target_protein: int = 160
-    target_carbs: int = 220
-    target_fat: int = 65
+    profile_data: ProfileData = ProfileData()
+
+    @rx.var
+    def target_calories(self) -> int:
+        return round(self.profile_data.targets.calories)
+
+    @rx.var
+    def target_protein(self) -> int:
+        return round(self.profile_data.targets.protein)
+
+    @rx.var
+    def target_carbs(self) -> int:
+        return round(self.profile_data.targets.carbs)
+
+    @rx.var
+    def target_fat(self) -> int:
+        return round(self.profile_data.targets.fat)
 
     def set_show_modal(self, val: bool):
         self.show_modal = val
 
     def set_target_calories(self, val: str):
         try:
-            self.target_calories = int(val)
+            val_float = float(val) if val != "" else 0.0
+            self.profile_data = ProfileData(
+                targets=MacroProfile(
+                    calories=val_float,
+                    protein=self.profile_data.targets.protein,
+                    carbs=self.profile_data.targets.carbs,
+                    fat=self.profile_data.targets.fat,
+                )
+            )
         except (ValueError, TypeError):
             pass
 
     def set_target_protein(self, val: str):
         try:
-            self.target_protein = int(val)
+            val_float = float(val) if val != "" else 0.0
+            self.profile_data = ProfileData(
+                targets=MacroProfile(
+                    calories=self.profile_data.targets.calories,
+                    protein=val_float,
+                    carbs=self.profile_data.targets.carbs,
+                    fat=self.profile_data.targets.fat,
+                )
+            )
         except (ValueError, TypeError):
             pass
 
     def set_target_carbs(self, val: str):
         try:
-            self.target_carbs = int(val)
+            val_float = float(val) if val != "" else 0.0
+            self.profile_data = ProfileData(
+                targets=MacroProfile(
+                    calories=self.profile_data.targets.calories,
+                    protein=self.profile_data.targets.protein,
+                    carbs=val_float,
+                    fat=self.profile_data.targets.fat,
+                )
+            )
         except (ValueError, TypeError):
             pass
 
     def set_target_fat(self, val: str):
         try:
-            self.target_fat = int(val)
+            val_float = float(val) if val != "" else 0.0
+            self.profile_data = ProfileData(
+                targets=MacroProfile(
+                    calories=self.profile_data.targets.calories,
+                    protein=self.profile_data.targets.protein,
+                    carbs=self.profile_data.targets.carbs,
+                    fat=val_float,
+                )
+            )
         except (ValueError, TypeError):
             pass
 
     async def open_modal(self):
         nutrition_state = await self.get_state(NutritionState)
-        self.target_calories = nutrition_state.target_calories
-        self.target_protein = nutrition_state.target_protein
-        self.target_carbs = nutrition_state.target_carbs
-        self.target_fat = nutrition_state.target_fat
+        self.profile_data = ProfileData(
+            targets=MacroProfile(
+                calories=nutrition_state.profile_data.targets.calories,
+                protein=nutrition_state.profile_data.targets.protein,
+                carbs=nutrition_state.profile_data.targets.carbs,
+                fat=nutrition_state.profile_data.targets.fat,
+            )
+        )
         self.show_modal = True
 
     def close_modal(self):
@@ -330,9 +401,9 @@ class TargetDialogState(rx.State):
     async def save_targets(self):
         nutrition_state = await self.get_state(NutritionState)
         nutrition_state.set_targets(
-            calories=self.target_calories,
-            protein=self.target_protein,
-            carbs=self.target_carbs,
-            fat=self.target_fat,
+            calories=self.profile_data.targets.calories,
+            protein=self.profile_data.targets.protein,
+            carbs=self.profile_data.targets.carbs,
+            fat=self.profile_data.targets.fat,
         )
         self.show_modal = False

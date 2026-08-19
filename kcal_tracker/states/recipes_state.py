@@ -195,9 +195,9 @@ class RecipesState(rx.State):
         nutrition_state = await self.get_state(NutritionState)
         new_meal = Meal(            
             name=recipe.name,
-            category=category,
+            category=MealCategory.Lunch,
             macros=recipe.macros_per_serving(),
-            time=datetime.now(),
+            date=nutrition_state.date_context,
         )
         await nutrition_state.add_meal(new_meal)
 

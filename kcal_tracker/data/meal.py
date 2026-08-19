@@ -1,5 +1,5 @@
 from enum import Enum
-from datetime import datetime, date
+import datetime
 from dataclasses import dataclass, field
 
 @dataclass
@@ -23,7 +23,7 @@ class Meal:
     name: str = ""
     category: MealCategory = MealCategory.Breakfast
     macros: MacroProfile = field(default_factory=MacroProfile)
-    time: datetime = field(default_factory=datetime.now)
+    date: datetime.date = field(default_factory=datetime.date.today)
 
     def __post_init__(self):
         if isinstance(self.macros, dict):
@@ -33,8 +33,5 @@ class Meal:
                 self.category = MealCategory(self.category)
             except ValueError:
                 self.category = MealCategory.Breakfast
-        if isinstance(self.time, str):
-            try:
-                self.time = datetime.fromisoformat(self.time)
-            except ValueError:
-                self.time = datetime.now()
+        if isinstance(self.date, str):
+            self.date = datetime.date.fromisoformat(self.date)
