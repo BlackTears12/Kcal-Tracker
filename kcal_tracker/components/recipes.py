@@ -1,10 +1,9 @@
 import reflex as rx
 from kcal_tracker.states import (
-    Recipe,
     RecipesState,
     RecipeDialogState,
 )
-
+from kcal_tracker.data.recipe import Recipe, Ingredient 
 
 def render_recipe_item(recipe: Recipe) -> rx.Component:
     """Renders a saved recipe card."""
@@ -64,17 +63,80 @@ def render_recipe_item(recipe: Recipe) -> rx.Component:
                 align="center",
                 width="100%",
             ),
-            rx.text(
-                f"🛒 Ingredients: {recipe.ingredients_text}",
-                size="2",
-                color_scheme="gray",
-                style={"font_style": "italic"},
+            rx.cond(
+                recipe.instructions != "",
+                rx.box(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.icon("clipboard-list", size=14, color="var(--purple-9)"),
+                            rx.text("Instructions", size="1", weight="bold", color="var(--purple-9)"),
+                            spacing="1",
+                            align="center",
+                        ),
+                        rx.text(
+                            recipe.instructions,
+                            size="2",
+                            color="var(--gray-12)",
+                            style={
+                                "white_space": "pre-wrap",
+                                "word_break": "break-word",
+                                "line_height": "1.5",
+                            },
+                        ),
+                        spacing="1",
+                        align="start",
+                        width="100%",
+                    ),
+                    style={
+                        "background": "var(--gray-2)",
+                        "border": "1px solid var(--gray-4)",
+                        "border_radius": "8px",
+                        "padding": "10px 12px",
+                        "width": "100%",
+                        "max_height": "180px",
+                        "overflow_y": "auto",
+                    },
+                ),
+            ),
+            # Ingredients List
+            rx.vstack(
+                rx.hstack(
+                    rx.icon("shopping-basket", size=14, color="var(--purple-9)"),
+                    rx.text("Ingredients:", size="1", weight="bold", color="var(--purple-9)"),
+                    spacing="1",
+                    align="center",
+                ),
+                rx.cond(
+                    recipe.ingredients,
+                    rx.vstack(
+                        rx.foreach(
+                            recipe.ingredients,
+                            lambda ing: rx.hstack(
+                                rx.text(f"• {ing.name}", size="2", weight="medium"),
+                                rx.badge(f"{ing.weight_g}g", color_scheme="gray", variant="surface", size="1"),
+                                spacing="2",
+                                align="center",
+                            ),
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
+                    rx.text(
+                        f"🛒 {recipe.ingredients_text}",
+                        size="2",
+                        color_scheme="gray",
+                        style={"font_style": "italic"},
+                    ),
+                ),
+                spacing="1",
+                align="start",
+                width="100%",
             ),
             rx.hstack(
-                rx.badge(f"{recipe.calories} kcal", color_scheme="orange", variant="surface", size="1"),
-                rx.badge(f"{recipe.protein}g Protein", color_scheme="blue", variant="surface", size="1"),
-                rx.badge(f"{recipe.carbs}g Carbs", color_scheme="amber", variant="surface", size="1"),
-                rx.badge(f"{recipe.fat}g Fat", color_scheme="green", variant="surface", size="1"),
+                rx.badge(f"{recipe.calories} kcal / serv", color_scheme="orange", variant="surface", size="1"),
+                rx.badge(f"{recipe.protein}g Protein / serv", color_scheme="blue", variant="surface", size="1"),
+                rx.badge(f"{recipe.carbs}g Carbs / serv", color_scheme="amber", variant="surface", size="1"),
+                rx.badge(f"{recipe.fat}g Fat / serv", color_scheme="green", variant="surface", size="1"),
                 spacing="2",
                 align="center",
             ),
@@ -91,6 +153,122 @@ def render_recipe_item(recipe: Recipe) -> rx.Component:
                 "border_color": "var(--purple-6)",
                 "box_shadow": "0 2px 12px rgba(0,0,0,0.04)",
             },
+        },
+        width="100%",
+    )
+
+
+def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
+    """Renders an editable ingredient row inside the Recipe Dialog."""
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.hstack(
+                    rx.badge(f"#{index + 1}", size="1", color_scheme="purple", variant="soft"),
+                    rx.input(
+                        placeholder="Ingredient name (e.g. Oats)",
+                        value=ing.name,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_name(index, val),
+                        size="2",
+                        flex="1",
+                    ),
+                    spacing="2",
+                    align="center",
+                    flex="1",
+                ),
+                rx.hstack(
+                    rx.input(
+                        type="number",
+                        placeholder="Weight",
+                        value=ing.weight_g,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_weight(index, val),
+                        size="2",
+                        style={"width": "80px"},
+                    ),
+                    rx.text("g", size="1", color_scheme="gray"),
+                    spacing="1",
+                    align="center",
+                ),
+                rx.button(
+                    rx.icon("trash-2", size=14),
+                    size="1",
+                    color_scheme="red",
+                    variant="soft",
+                    on_click=lambda: RecipeDialogState.remove_ingredient(index),
+                    style={"cursor": "pointer"},
+                ),
+                justify="between",
+                align="center",
+                width="100%",
+                spacing="2",
+            ),
+            rx.hstack(
+                rx.text("Macros per 100g:", size="1", color_scheme="gray", weight="bold"),
+                rx.hstack(
+                    rx.input(
+                        type="number",
+                        placeholder="kcal",
+                        value=ing.macros_per_100g.calories,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_calories(index, val),
+                        size="1",
+                        style={"width": "68px"},
+                    ),
+                    rx.text("kcal", size="1", color_scheme="gray"),
+                    spacing="1",
+                    align="center",
+                ),
+                rx.hstack(
+                    rx.input(
+                        type="number",
+                        placeholder="protein",
+                        value=ing.macros_per_100g.protein,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_protein(index, val),
+                        size="1",
+                        style={"width": "62px"},
+                    ),
+                    rx.text("p", size="1", color_scheme="gray"),
+                    spacing="1",
+                    align="center",
+                ),
+                rx.hstack(
+                    rx.input(
+                        type="number",
+                        placeholder="carbs",
+                        value=ing.macros_per_100g.carbs,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_carbs(index, val),
+                        size="1",
+                        style={"width": "62px"},
+                    ),
+                    rx.text("c", size="1", color_scheme="gray"),
+                    spacing="1",
+                    align="center",
+                ),
+                rx.hstack(
+                    rx.input(
+                        type="number",
+                        placeholder="fat",
+                        value=ing.macros_per_100g.fat,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_fat(index, val),
+                        size="1",
+                        style={"width": "62px"},
+                    ),
+                    rx.text("f", size="1", color_scheme="gray"),
+                    spacing="1",
+                    align="center",
+                ),
+                spacing="2",
+                align="center",
+                wrap="wrap",
+            ),
+            spacing="2",
+            width="100%",
+        ),
+        size="1",
+        style={
+            "background": "var(--gray-3)",
+            "border": "1px solid var(--gray-5)",
+            "border_radius": "8px",
+            "padding": "8px 10px",
         },
         width="100%",
     )
@@ -166,7 +344,7 @@ def recipe_dialog() -> rx.Component:
         rx.dialog.content(
             rx.dialog.title(RecipeDialogState.modal_title),
             rx.dialog.description(
-                "Enter recipe details and ingredients.",
+                "Enter recipe details, preparation instructions, and ingredients.",
                 size="2",
                 margin_bottom="4",
             ),
@@ -185,60 +363,53 @@ def recipe_dialog() -> rx.Component:
                         spacing="1",
                     ),
                     rx.vstack(
-                        rx.text("Ingredients & Quantity", size="2", weight="bold"),
+                        rx.text("Instructions (Optional)", size="2", weight="bold"),
+                        rx.text_area(
+                            placeholder="e.g.\n1. Season salmon with salt and pepper.\n2. Sear in a pan for 4 mins each side.\n3. Serve over cooked rice and steamed broccoli.",
+                            value=RecipeDialogState.instructions,
+                            on_change=RecipeDialogState.set_instructions,
+                            size="3",
+                            width="100%",
+                            rows="4",
+                        ),
+                        width="100%",
+                        spacing="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Servings", size="2", weight="bold"),
                         rx.input(
-                            placeholder="e.g. 50g Oats, 1 scoop Whey, 200ml Milk",
-                            value=RecipeDialogState.ingredients_text,
-                            on_change=RecipeDialogState.set_ingredients_text,
+                            type="number",
+                            value=RecipeDialogState.servings,
+                            on_change=RecipeDialogState.set_servings,
                             size="3",
                             width="100%",
                         ),
                         width="100%",
                         spacing="1",
                     ),
-                    rx.grid(
-                        rx.vstack(
-                            rx.text("Servings", size="2", weight="bold"),
-                            rx.input(
-                                type="number",
-                                value=RecipeDialogState.servings,
-                                on_change=RecipeDialogState.set_servings,
-                                size="3",
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Ingredients", size="2", weight="bold"),
+                            rx.button(
+                                rx.icon("plus", size=14),
+                                "Add Ingredient",
+                                size="1",
+                                variant="soft",
+                                color_scheme="purple",
+                                on_click=RecipeDialogState.add_ingredient,
+                                style={"cursor": "pointer"},
                             ),
-                            spacing="1",
+                            justify="between",
+                            align="center",
+                            width="100%",
                         ),
                         rx.vstack(
-                            rx.text("Calories (kcal)", size="2", weight="bold"),
-                            rx.input(
-                                type="number",
-                                value=RecipeDialogState.calories,
-                                on_change=RecipeDialogState.set_calories,
-                                size="3",
-                            ),
-                            spacing="1",
+                            rx.foreach(RecipeDialogState.ingredients, render_editable_ingredient),
+                            spacing="2",
+                            width="100%",
+                            style={"max_height": "260px", "overflow_y": "auto", "padding_right": "4px"},
                         ),
-                        rx.vstack(
-                            rx.text("Protein (g)", size="2", weight="bold"),
-                            rx.input(
-                                type="number",
-                                value=RecipeDialogState.protein,
-                                on_change=RecipeDialogState.set_protein,
-                                size="3",
-                            ),
-                            spacing="1",
-                        ),
-                        rx.vstack(
-                            rx.text("Carbs (g)", size="2", weight="bold"),
-                            rx.input(
-                                type="number",
-                                value=RecipeDialogState.carbs,
-                                on_change=RecipeDialogState.set_carbs,
-                                size="3",
-                            ),
-                            spacing="1",
-                        ),
-                        columns=rx.breakpoints(initial="2", sm="4"),
-                        spacing="3",
+                        spacing="2",
                         width="100%",
                     ),
                     spacing="4",
@@ -265,7 +436,7 @@ def recipe_dialog() -> rx.Component:
                 margin_top="4",
                 justify="end",
             ),
-            style={"max_width": "500px"},
+            style={"max_width": "580px"},
         ),
         open=RecipeDialogState.show_modal,
         on_open_change=RecipeDialogState.set_show_modal,

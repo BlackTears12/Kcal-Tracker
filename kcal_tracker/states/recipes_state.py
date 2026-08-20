@@ -1,120 +1,14 @@
 import reflex as rx
-from enum import Enum
-from datetime import datetime
-from dataclasses import dataclass, field
 from kcal_tracker.data.meal import *
 from kcal_tracker.states.nutrition_state import NutritionState
-
-
-@dataclass
-class Ingredient:
-    name: str = ""
-    macros_per_100g: MacroProfile = field(default_factory=MacroProfile)
-    weight_g: float = 0.0
-
-    def __post_init__(self):
-        if isinstance(self.macros_per_100g, dict):
-            self.macros_per_100g = MacroProfile(**self.macros_per_100g)
-
-    def calories(self) -> float:
-        return round(self.macros_per_100g.calories * (self.weight_g / 100.0), 1)
-
-    def protein(self) -> float:
-        return round(self.macros_per_100g.protein * (self.weight_g / 100.0), 1)
-
-    def carbs(self) -> float:
-        return round(self.macros_per_100g.carbs * (self.weight_g / 100.0), 1)
-
-    def fat(self) -> float:
-        return round(self.macros_per_100g.fat * (self.weight_g / 100.0), 1)
-
-    def total_macros(self) -> MacroProfile:
-        return MacroProfile(
-            calories=self.calories(),
-            protein=self.protein(),
-            carbs=self.carbs(),
-            fat=self.fat(),
-        )
-
-
-@dataclass
-class Recipe:
-    id: int = 0
-    name: str = ""
-    ingredients: list[Ingredient] = field(default_factory=list)
-    servings: int = 1
-    ingredients_text: str = ""
-    calories: float = 0.0
-    protein: float = 0.0
-    carbs: float = 0.0
-    fat: float = 0.0    
-
-    def __post_init__(self):
-        if self.ingredients:
-            self.ingredients = [
-                Ingredient(**ing) if isinstance(ing, dict) else ing
-                for ing in self.ingredients
-            ]
-            if not self.ingredients_text:
-                self.ingredients_text = ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in self.ingredients)
-            if self.calories == 0.0:
-                self.calories = round(sum(ing.calories() for ing in self.ingredients), 1)
-            if self.protein == 0.0:
-                self.protein = round(sum(ing.protein() for ing in self.ingredients), 1)
-            if self.carbs == 0.0:
-                self.carbs = round(sum(ing.carbs() for ing in self.ingredients), 1)
-            if self.fat == 0.0:
-                self.fat = round(sum(ing.fat() for ing in self.ingredients), 1)
-
-    def total_calories(self) -> float:
-        return self.calories
-
-    def total_protein(self) -> float:
-        return self.protein
-
-    def total_carbs(self) -> float:
-        return self.carbs
-
-    def total_fat(self) -> float:
-        return self.fat
-
-    def calories_per_serving(self) -> float:
-        if self.servings <= 0:
-            return 0.0
-        return round(self.calories / self.servings, 1)
-
-    def protein_per_serving(self) -> float:
-        if self.servings <= 0:
-            return 0.0
-        return round(self.protein / self.servings, 1)
-
-    def carbs_per_serving(self) -> float:
-        if self.servings <= 0:
-            return 0.0
-        return round(self.carbs / self.servings, 1)
-
-    def fat_per_serving(self) -> float:
-        if self.servings <= 0:
-            return 0.0
-        return round(self.fat / self.servings, 1)
-
-    def macros_per_serving(self) -> MacroProfile:
-        return MacroProfile(
-            calories=self.calories_per_serving(),
-            protein=self.protein_per_serving(),
-            carbs=self.carbs_per_serving(),
-            fat=self.fat_per_serving(),
-        )
-
-    def ingredients_summary(self) -> str:
-        return self.ingredients_text or "No ingredients specified"
-
+from kcal_tracker.data.recipe import *
 
 def get_default_recipes() -> list[Recipe]:
     return [
         Recipe(
             id=1,
             name="High-Protein Salmon & Rice Bowl",
+            instructions="1. Season the salmon fillet with salt, black pepper, and garlic powder.\n2. Heat a non-stick skillet over medium-high heat and sear the salmon for 3-4 minutes per side until golden and cooked through.\n3. Microwave or steam jasmine rice and broccoli until tender.\n4. Assemble into a bowl and garnish with soy sauce or sesame seeds if desired.",
             servings=1,
             ingredients=[
                 Ingredient(
@@ -137,6 +31,7 @@ def get_default_recipes() -> list[Recipe]:
         Recipe(
             id=2,
             name="Post-Workout Whey Smoothie",
+            instructions="1. Add almond milk and banana into a high-speed blender.\n2. Add whey isolate powder and peanut butter.\n3. Blend on high for 30-45 seconds until smooth and creamy.\n4. Pour into a glass and enjoy immediately post-workout.",
             servings=1,
             ingredients=[
                 Ingredient(
@@ -209,14 +104,9 @@ class RecipeDialogState(rx.State):
     # Form fields
     recipe_id: int = 0
     name: str = ""
+    instructions: str = ""
     servings: int = 1
-    ingredients_text: str = ""
-
-    # Direct macros (for quick manual input)
-    calories: float = 0.0
-    protein: float = 0.0
-    carbs: float = 0.0
-    fat: float = 0.0
+    ingredients: list[Ingredient] = []
 
     @rx.var
     def modal_title(self) -> str:
@@ -228,8 +118,8 @@ class RecipeDialogState(rx.State):
     def set_name(self, val: str):
         self.name = val
 
-    def set_ingredients_text(self, val: str):
-        self.ingredients_text = val
+    def set_instructions(self, val: str):
+        self.instructions = val
 
     def set_servings(self, val: str):
         try:
@@ -237,40 +127,110 @@ class RecipeDialogState(rx.State):
         except (ValueError, TypeError):
             self.servings = 1
 
-    def set_calories(self, val: str):
-        try:
-            self.calories = float(val)
-        except (ValueError, TypeError):
-            self.calories = 0.0
+    def _copy_ingredients(self) -> list[Ingredient]:
+        copied = []
+        for ing in self.ingredients:
+            if isinstance(ing, dict):
+                copied.append(Ingredient(**ing))
+            else:
+                copied.append(Ingredient(
+                    name=ing.name,
+                    macros_per_100g=MacroProfile(
+                        calories=ing.macros_per_100g.calories,
+                        protein=ing.macros_per_100g.protein,
+                        carbs=ing.macros_per_100g.carbs,
+                        fat=ing.macros_per_100g.fat,
+                    ),
+                    weight_g=ing.weight_g,
+                ))
+        return copied
 
-    def set_protein(self, val: str):
-        try:
-            self.protein = float(val)
-        except (ValueError, TypeError):
-            self.protein = 0.0
+    def add_ingredient(self):
+        items = self._copy_ingredients()
+        items.append(
+            Ingredient(
+                name="",
+                macros_per_100g=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
+                weight_g=100.0,
+            )
+        )
+        self.ingredients = items
 
-    def set_carbs(self, val: str):
-        try:
-            self.carbs = float(val)
-        except (ValueError, TypeError):
-            self.carbs = 0.0
+    def remove_ingredient(self, index: int):
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items.pop(index)
+            self.ingredients = items
 
-    def set_fat(self, val: str):
+    def update_ingredient_name(self, index: int, val: str):
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].name = val
+            self.ingredients = items
+
+    def update_ingredient_weight(self, index: int, val: str):
         try:
-            self.fat = float(val)
+            w = float(val)
         except (ValueError, TypeError):
-            self.fat = 0.0
+            w = 0.0
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].weight_g = w
+            self.ingredients = items
+
+    def update_ingredient_calories(self, index: int, val: str):
+        try:
+            c = float(val)
+        except (ValueError, TypeError):
+            c = 0.0
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].macros_per_100g.calories = c
+            self.ingredients = items
+
+    def update_ingredient_protein(self, index: int, val: str):
+        try:
+            p = float(val)
+        except (ValueError, TypeError):
+            p = 0.0
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].macros_per_100g.protein = p
+            self.ingredients = items
+
+    def update_ingredient_carbs(self, index: int, val: str):
+        try:
+            cb = float(val)
+        except (ValueError, TypeError):
+            cb = 0.0
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].macros_per_100g.carbs = cb
+            self.ingredients = items
+
+    def update_ingredient_fat(self, index: int, val: str):
+        try:
+            f = float(val)
+        except (ValueError, TypeError):
+            f = 0.0
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].macros_per_100g.fat = f
+            self.ingredients = items
 
     def open_add_recipe(self):
         self.is_editing_recipe = False
         self.recipe_id = 0
         self.name = ""
+        self.instructions = ""
         self.servings = 1
-        self.ingredients_text = ""
-        self.calories = 0.0
-        self.protein = 0.0
-        self.carbs = 0.0
-        self.fat = 0.0
+        self.ingredients = [
+            Ingredient(
+                name="",
+                macros_per_100g=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
+                weight_g=100.0,
+            )
+        ]
         self.show_modal = True
 
     def open_edit_recipe(self, recipe: Recipe):
@@ -279,12 +239,33 @@ class RecipeDialogState(rx.State):
         self.is_editing_recipe = True
         self.recipe_id = recipe.id
         self.name = recipe.name
+        self.instructions = recipe.instructions
         self.servings = recipe.servings
-        self.ingredients_text = recipe.ingredients_text or recipe.ingredients_summary()
-        self.calories = recipe.calories
-        self.protein = recipe.protein
-        self.carbs = recipe.carbs
-        self.fat = recipe.fat
+        
+        ingredients_list = []
+        for ing in recipe.ingredients:
+            if isinstance(ing, dict):
+                ingredients_list.append(Ingredient(**ing))
+            else:
+                ingredients_list.append(Ingredient(
+                    name=ing.name,
+                    macros_per_100g=MacroProfile(
+                        calories=ing.macros_per_100g.calories,
+                        protein=ing.macros_per_100g.protein,
+                        carbs=ing.macros_per_100g.carbs,
+                        fat=ing.macros_per_100g.fat,
+                    ),
+                    weight_g=ing.weight_g,
+                ))
+        if not ingredients_list:
+            ingredients_list = [
+                Ingredient(
+                    name="",
+                    macros_per_100g=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
+                    weight_g=100.0,
+                )
+            ]
+        self.ingredients = ingredients_list
         self.show_modal = True
 
     def close_modal(self):
@@ -296,31 +277,20 @@ class RecipeDialogState(rx.State):
 
         recipes_state = await self.get_state(RecipesState)
 
-        # Create ingredient wrapper with total macros
-        ingredients = [
-            Ingredient(
-                name=self.ingredients_text.strip() or "Ingredients",
-                macros_per_100g=MacroProfile(
-                    calories=float(self.calories),
-                    protein=float(self.protein),
-                    carbs=float(self.carbs),
-                    fat=float(self.fat),
-                ),
-                weight_g=100.0,
-            )
+        valid_ingredients = [
+            ing for ing in self._copy_ingredients()
+            if ing.name.strip() or ing.weight_g > 0
         ]
+        ingredients_text = ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in valid_ingredients if ing.name.strip())
 
         if self.is_editing_recipe:
             updated_recipe = Recipe(
                 id=self.recipe_id,
                 name=self.name.strip(),
-                ingredients=ingredients,
+                instructions=self.instructions.strip(),
+                ingredients=valid_ingredients,
                 servings=max(1, int(self.servings)),
-                ingredients_text=self.ingredients_text.strip(),
-                calories=float(self.calories),
-                protein=float(self.protein),
-                carbs=float(self.carbs),
-                fat=float(self.fat),
+                ingredients_text=ingredients_text,
             )
             recipes_state.update_recipe(updated_recipe)
         else:
@@ -328,13 +298,10 @@ class RecipeDialogState(rx.State):
             new_recipe = Recipe(
                 id=new_id,
                 name=self.name.strip(),
-                ingredients=ingredients,
+                instructions=self.instructions.strip(),
+                ingredients=valid_ingredients,
                 servings=max(1, int(self.servings)),
-                ingredients_text=self.ingredients_text.strip(),
-                calories=float(self.calories),
-                protein=float(self.protein),
-                carbs=float(self.carbs),
-                fat=float(self.fat),
+                ingredients_text=ingredients_text,
             )
             recipes_state.add_recipe(new_recipe)
 
