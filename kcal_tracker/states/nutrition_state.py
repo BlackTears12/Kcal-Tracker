@@ -119,7 +119,7 @@ class NutritionState(rx.State):
 
     # Event handlers
     def on_login(self, user_id: str):
-        if not user_id or user_id == "unknown":
+        if not user_id or user_id == "shared":
             return
         if self.user_id == user_id:
             return

@@ -2,65 +2,11 @@ import reflex as rx
 from kcal_tracker.data.meal import *
 from kcal_tracker.states.nutrition_state import NutritionState
 from kcal_tracker.data.recipe import *
-
-def get_default_recipes() -> list[Recipe]:
-    return [
-        Recipe(
-            id=1,
-            name="High-Protein Salmon & Rice Bowl",
-            instructions="1. Season the salmon fillet with salt, black pepper, and garlic powder.\n2. Heat a non-stick skillet over medium-high heat and sear the salmon for 3-4 minutes per side until golden and cooked through.\n3. Microwave or steam jasmine rice and broccoli until tender.\n4. Assemble into a bowl and garnish with soy sauce or sesame seeds if desired.",
-            servings=1,
-            ingredients=[
-                Ingredient(
-                    name="Salmon fillet",
-                    macros_per_100g=MacroProfile(calories=208, protein=20, carbs=0, fat=13),
-                    weight_g=180,
-                ),
-                Ingredient(
-                    name="Cooked Jasmine Rice",
-                    macros_per_100g=MacroProfile(calories=130, protein=2.7, carbs=28, fat=0.3),
-                    weight_g=150,
-                ),
-                Ingredient(
-                    name="Steamed Broccoli",
-                    macros_per_100g=MacroProfile(calories=34, protein=2.8, carbs=7, fat=0.4),
-                    weight_g=100,
-                ),
-            ],
-        ),
-        Recipe(
-            id=2,
-            name="Post-Workout Whey Smoothie",
-            instructions="1. Add almond milk and banana into a high-speed blender.\n2. Add whey isolate powder and peanut butter.\n3. Blend on high for 30-45 seconds until smooth and creamy.\n4. Pour into a glass and enjoy immediately post-workout.",
-            servings=1,
-            ingredients=[
-                Ingredient(
-                    name="Whey Isolate",
-                    macros_per_100g=MacroProfile(calories=370, protein=80, carbs=3, fat=2),
-                    weight_g=30,
-                ),
-                Ingredient(
-                    name="Banana",
-                    macros_per_100g=MacroProfile(calories=89, protein=1.1, carbs=23, fat=0.3),
-                    weight_g=120,
-                ),
-                Ingredient(
-                    name="Almond Milk",
-                    macros_per_100g=MacroProfile(calories=15, protein=0.5, carbs=0.3, fat=1.1),
-                    weight_g=250,
-                ),
-                Ingredient(
-                    name="Peanut Butter",
-                    macros_per_100g=MacroProfile(calories=588, protein=25, carbs=20, fat=50),
-                    weight_g=15,
-                ),
-            ],
-        ),
-    ]
+import kcal_tracker.models.data_repository as data_repository
 
 
 class RecipesState(rx.State):
-    recipes: list[Recipe] = get_default_recipes()
+    recipes: list[Recipe] = data_repository.load_recipes() 
 
     # Computed vars
     @rx.var
@@ -70,12 +16,15 @@ class RecipesState(rx.State):
     # Event handlers
     def add_recipe(self, recipe: Recipe):
         self.recipes = self.recipes + [recipe]
+        data_repository.save_recipes(self.recipes)
 
     def remove_recipe(self, id: int):
         self.recipes = [r for r in self.recipes if r.id != id]
+        data_repository.save_recipes(self.recipes)
 
     def update_recipe(self, recipe: Recipe):
         self.recipes = [recipe if r.id == recipe.id else r for r in self.recipes]
+        data_repository.save_recipes(self.recipes)
 
     def next_recipe_id(self) -> int:
         existing_ids = {r.id for r in self.recipes}

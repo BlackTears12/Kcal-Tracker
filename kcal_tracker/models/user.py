@@ -47,4 +47,4 @@ class User(GoogleAuthState):
     def get_id(self):
         if self.token_is_valid:
             return "bea" if self.tokeninfo.get("email", "") == "ughybeus@gmail.com" else "balint"
-        return "unknown"
+        return "shared"
