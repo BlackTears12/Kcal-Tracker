@@ -3,6 +3,7 @@ from datetime import datetime, date, timedelta
 import kcal_tracker.models.data_repository as data_repository
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.profiledata import ProfileData
+from kcal_tracker.data.unit import Unit
 
 class NutritionState(rx.State):
     logged_meals: list[Meal] = []
@@ -197,7 +198,8 @@ class MealDialogState(rx.State):
     meal_id: int = 0
     name: str = ""
     category: MealCategory = MealCategory.Breakfast
-    weight: float = 0.0
+    amount: float = 1.0
+    unit: Unit = Unit()
     calories: float = 0.0
     protein: float = 0.0
     carbs: float = 0.0
@@ -220,11 +222,17 @@ class MealDialogState(rx.State):
         except ValueError:
             self.category = MealCategory.Breakfast
 
-    def set_weight(self, val: str):
+    def set_amount(self, val: str):
         try:
-            self.weight = float(val)
+            self.amount = float(val)
         except (ValueError, TypeError):
-            self.weight = 0.0
+            self.amount = 0.0
+
+    def set_weight(self, val: str):
+        self.set_amount(val)
+
+    def set_unit(self, val: str):
+        self.unit = Unit(val)
 
     def set_scale_macros(self, val: bool):
         self.scale_macros = val
@@ -258,7 +266,8 @@ class MealDialogState(rx.State):
         self.meal_id = 0
         self.name = ""
         self.category = MealCategory.Breakfast
-        self.weight = 0.0
+        self.amount = 1.0
+        self.unit = Unit()
         self.calories = 0.0
         self.protein = 0.0
         self.carbs = 0.0
@@ -273,7 +282,8 @@ class MealDialogState(rx.State):
         self.meal_id = meal.id
         self.name = meal.name
         self.category = meal.category
-        self.weight = meal.weight
+        self.amount = meal.amount
+        self.unit = meal.unit
         self.calories = meal.macros.calories
         self.protein = meal.macros.protein
         self.carbs = meal.macros.carbs
@@ -306,13 +316,15 @@ class MealDialogState(rx.State):
                 category=self.category,
                 macros=macros,
                 date=meal_date,
-                weight=float(self.weight),
+                amount=self.amount,
+                unit=self.unit
             )
 
-            # if editing a meal with scale macros use the original weight as base for the scaling
-            if existing and self.weight != existing.weight and self.scale_macros:
-                updated_meal.weight = existing.weight
-                updated_meal = updated_meal.scale_weight(float(self.weight))
+            # if editing a meal with scale macros use the original amount as base for the scaling
+            if existing and self.scale_macros:
+                updated_meal.amount = existing.amount
+                updated_meal.unit = existing.unit
+                updated_meal = updated_meal.scale_size(self.amount,self.unit)
                 
             await nutrition_state.update_meal(updated_meal)
         else:
@@ -321,7 +333,8 @@ class MealDialogState(rx.State):
                 category=self.category,
                 macros=macros,
                 date=nutrition_state.date_context,
-                weight=float(self.weight),
+                amount=float(self.amount),
+                unit=self.unit,
             )
             await nutrition_state.add_meal(new_meal)
 

@@ -2,8 +2,10 @@ import reflex as rx
 from kcal_tracker.states import (
     RecipesState,
     RecipeDialogState,
+    Unit,
 )
 from kcal_tracker.data.recipe import Recipe, Ingredient 
+import kcal_tracker.data.unit as unit
 
 def render_recipe_item(recipe: Recipe) -> rx.Component:
     """Renders a saved recipe card."""
@@ -113,7 +115,7 @@ def render_recipe_item(recipe: Recipe) -> rx.Component:
                             recipe.ingredients,
                             lambda ing: rx.hstack(
                                 rx.text(f"• {ing.name}", size="2", weight="medium"),
-                                rx.badge(f"{ing.weight_g}g", color_scheme="gray", variant="surface", size="1"),
+                                rx.badge(f"{ing.amount}{ing.unit.unit}", color_scheme="gray", variant="surface", size="1"),
                                 spacing="2",
                                 align="center",
                             ),
@@ -179,13 +181,19 @@ def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
                 rx.hstack(
                     rx.input(
                         type="number",
-                        placeholder="Weight",
-                        value=ing.weight_g,
-                        on_change=lambda val: RecipeDialogState.update_ingredient_weight(index, val),
+                        placeholder="Amount",
+                        value=ing.amount,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_amount(index, val),
                         size="2",
-                        style={"width": "80px"},
+                        style={"width": "75px"},
                     ),
-                    rx.text("g", size="1", color_scheme="gray"),
+                    rx.select(
+                        unit.ALL_UNITS,
+                        value=ing.unit.unit,
+                        on_change=lambda val: RecipeDialogState.update_ingredient_unit(index, val),
+                        size="2",
+                        style={"width": "90px"},
+                    ),
                     spacing="1",
                     align="center",
                 ),
@@ -203,12 +211,12 @@ def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
                 spacing="2",
             ),
             rx.hstack(
-                rx.text("Macros per 100g:", size="1", color_scheme="gray", weight="bold"),
+                rx.text("Macros per unit:", size="1", color_scheme="gray", weight="bold"),
                 rx.hstack(
                     rx.input(
                         type="number",
                         placeholder="kcal",
-                        value=ing.macros_per_100g.calories,
+                        value=ing.macros_per_unit.calories,
                         on_change=lambda val: RecipeDialogState.update_ingredient_calories(index, val),
                         size="1",
                         style={"width": "68px"},
@@ -221,7 +229,7 @@ def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
                     rx.input(
                         type="number",
                         placeholder="protein",
-                        value=ing.macros_per_100g.protein,
+                        value=ing.macros_per_unit.protein,
                         on_change=lambda val: RecipeDialogState.update_ingredient_protein(index, val),
                         size="1",
                         style={"width": "62px"},
@@ -234,7 +242,7 @@ def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
                     rx.input(
                         type="number",
                         placeholder="carbs",
-                        value=ing.macros_per_100g.carbs,
+                        value=ing.macros_per_unit.carbs,
                         on_change=lambda val: RecipeDialogState.update_ingredient_carbs(index, val),
                         size="1",
                         style={"width": "62px"},
@@ -247,7 +255,7 @@ def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
                     rx.input(
                         type="number",
                         placeholder="fat",
-                        value=ing.macros_per_100g.fat,
+                        value=ing.macros_per_unit.fat,
                         on_change=lambda val: RecipeDialogState.update_ingredient_fat(index, val),
                         size="1",
                         style={"width": "62px"},

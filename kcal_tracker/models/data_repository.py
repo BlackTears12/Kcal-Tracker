@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 STORAGE_DIR = "./data"
 
 MEAL_FIELD_NAMES = ["name", "category", "calories",
-                    "protein_g", "carbs_g", "fat_g", "weight", "date"]
+                    "protein_g", "carbs_g", "fat_g", "amount", "unit", "date"]
 PROFILE_FIELD_NAMES = ["target_kcal",
                        "target_protein", "target_carbs", "target_fat"]
 RECIPES_FIELD_NAMES = ["name", "servings", "instructions", "ingredient_list"]
@@ -65,7 +65,8 @@ def save_data_cache():
              "carbs_g": m.macros.carbs,
              "fat_g": m.macros.fat,
              "date": m.date.isoformat(),
-             "weight": m.weight} for m in merged]
+             "amount": m.amount,
+             "unit": m.unit.unit} for m in merged]
     save_structured(csv_path, MEAL_FIELD_NAMES, data, log)
 
 
@@ -79,7 +80,8 @@ def load_data_cache(user_id: str) -> DataCache:
         macros=MacroProfile(float(row["calories"]), float(row["protein_g"]),
                             float(row["carbs_g"]), float(row["fat_g"])),
         date=date.fromisoformat(row["date"]),
-        weight=float(row["weight"])), log)
+        amount=float(row["amount"]),
+        unit=Unit(row["unit"])), log)
     for m in meals:
         cache.meal_data[m.date].append(m)
     return cache
@@ -99,10 +101,10 @@ def load_meals(user_id: str, date_context: date) -> list[Meal]:
 
 def save_recipes(recipes: list[Recipe]):
     def ingr_str(ing: Ingredient):
-        return ";".join([ing.name, str(ing.macros_per_100g.calories),
-                         str(ing.macros_per_100g.protein), str(
-                             ing.macros_per_100g.carbs),
-                         str(ing.macros_per_100g.fat), str(ing.weight_g)])
+        return ";".join([ing.name, str(ing.macros_per_unit.calories),
+                         str(ing.macros_per_unit.protein), 
+                         str(ing.macros_per_unit.carbs),
+                         str(ing.macros_per_unit.fat), str(ing.amount), ing.unit.unit])
     csv_path = _get_csv_path("shared", "recipes.csv")
     data = [{
         "name": r.name,
@@ -117,10 +119,10 @@ def save_recipes(recipes: list[Recipe]):
 def load_recipes():
     def ingr_from_str(s: str):
         parts = s.split(";")
-        return Ingredient(name=parts[0], macros_per_100g=MacroProfile(
-                float(parts[2]), float(parts[3]),
-                float(parts[4]), float(parts[5])),
-            weight_g=float(parts[6]))
+        return Ingredient(name=parts[0], macros_per_unit=MacroProfile(
+                float(parts[1]), float(parts[2]),
+                float(parts[3]), float(parts[4])),
+            amount=float(parts[5]), unit=Unit(parts[6]))
     csv_path = _get_csv_path("shared", "recipes.csv")
     with recipes_csv_lock:
         return load_structured(csv_path, RECIPES_FIELD_NAMES,

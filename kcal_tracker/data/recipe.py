@@ -6,24 +6,29 @@ from kcal_tracker.data.meal import *
 @dataclass
 class Ingredient:
     name: str = ""
-    macros_per_100g: MacroProfile = field(default_factory=MacroProfile)
-    weight_g: float = 0.0
+    macros_per_unit: MacroProfile = field(default_factory=MacroProfile)
+    amount: float = 1.0
+    unit: Unit = field(default_factory=Unit)
 
     def __post_init__(self):
-        if isinstance(self.macros_per_100g, dict):
-            self.macros_per_100g = MacroProfile(**self.macros_per_100g)
+        if isinstance(self.macros_per_unit, dict):
+            self.macros_per_unit = MacroProfile(**self.macros_per_unit)
+        if isinstance(self.unit, str):
+            self.unit = Unit(self.unit)
+        elif isinstance(self.unit, dict):
+            self.unit = Unit(**self.unit)
 
     def calories(self) -> float:
-        return round(self.macros_per_100g.calories * (self.weight_g / 100.0), 1)
+        return round(self.macros_per_unit.calories * self.amount, 1)
 
     def protein(self) -> float:
-        return round(self.macros_per_100g.protein * (self.weight_g / 100.0), 1)
+        return round(self.macros_per_unit.protein * self.amount, 1)
 
     def carbs(self) -> float:
-        return round(self.macros_per_100g.carbs * (self.weight_g / 100.0), 1)
+        return round(self.macros_per_unit.carbs * self.amount, 1)
 
     def fat(self) -> float:
-        return round(self.macros_per_100g.fat * (self.weight_g / 100.0), 1)
+        return round(self.macros_per_unit.fat * self.amount, 1)
 
     def total_macros(self) -> MacroProfile:
         return MacroProfile(
@@ -55,7 +60,9 @@ class Recipe:
                 for ing in self.ingredients
             ]
             if not self.ingredients_text:
-                self.ingredients_text = ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in self.ingredients)
+                self.ingredients_text = ", ".join(
+                    f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in self.ingredients
+                )
 
         self.recalculate_macros()
 

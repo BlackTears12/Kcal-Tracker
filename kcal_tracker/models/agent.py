@@ -13,7 +13,8 @@ class MealSchema(BaseModel):
     protein_g: float = Field(description="grams of protein contained in the meal")
     carbs_g: float = Field(description="grams of carbs contained in the meal")
     fat_g: float = Field(description="grams of fat contained in the meal")
-    weight: float = Field(default=0.0, description="weight in grams of the meal")
+    amount: float = Field(default=1.0, description="Quantity / amount of the meal")
+    unit: str = Field(default="g", description="Unit of measurement: g, dkg, kg, ml, dl, l, or serving")
 
     @classmethod
     def from_app_meal(cls, meal: Meal):
@@ -24,7 +25,8 @@ class MealSchema(BaseModel):
             protein_g=meal.macros.protein,
             carbs_g=meal.macros.carbs,
             fat_g=meal.macros.fat,
-            weight=meal.weight,
+            amount=meal.amount,
+            unit=meal.unit.unit if isinstance(meal.unit, Unit) else str(meal.unit),
         )
 
     def to_app_meal(self) -> Meal:
@@ -35,7 +37,8 @@ class MealSchema(BaseModel):
             macros=MacroProfile(
                 self.calories, self.protein_g, self.carbs_g, self.fat_g
             ),
-            weight=self.weight,
+            amount=self.amount,
+            unit=Unit(self.unit),
         )
 
 
@@ -73,33 +76,36 @@ async def remove_meal(id: int):
 
 class IngredientSchema(BaseModel):
     name: str = Field(description="Name of the ingredient (e.g. Oats, Chicken Breast, Almond Milk)")
-    weight_g: float = Field(default=100.0, description="Weight of the ingredient in grams")
-    calories_per_100g: float = Field(default=0.0, description="Calories in kcal per 100g of the ingredient")
-    protein_per_100g: float = Field(default=0.0, description="Protein in grams per 100g of the ingredient")
-    carbs_per_100g: float = Field(default=0.0, description="Carbs in grams per 100g of the ingredient")
-    fat_per_100g: float = Field(default=0.0, description="Fat in grams per 100g of the ingredient")
+    amount: float = Field(default=1.0, description="Quantity / amount of the ingredient")
+    unit: str = Field(default="g", description="Unit of measurement: g, dkg, kg, ml, dl, l, or serving")
+    calories_per_unit: float = Field(default=0.0, description="Calories in kcal per 1 unit of the ingredient")
+    protein_per_unit: float = Field(default=0.0, description="Protein in grams per 1 unit of the ingredient")
+    carbs_per_unit: float = Field(default=0.0, description="Carbs in grams per 1 unit of the ingredient")
+    fat_per_unit: float = Field(default=0.0, description="Fat in grams per 1 unit of the ingredient")
 
     @classmethod
     def from_app_ingredient(cls, ingredient: Ingredient) -> "IngredientSchema":
         return cls(
             name=ingredient.name,
-            weight_g=ingredient.weight_g,
-            calories_per_100g=ingredient.macros_per_100g.calories,
-            protein_per_100g=ingredient.macros_per_100g.protein,
-            carbs_per_100g=ingredient.macros_per_100g.carbs,
-            fat_per_100g=ingredient.macros_per_100g.fat,
+            amount=ingredient.amount,
+            unit=ingredient.unit.unit if isinstance(ingredient.unit, Unit) else str(ingredient.unit),
+            calories_per_unit=ingredient.macros_per_unit.calories,
+            protein_per_unit=ingredient.macros_per_unit.protein,
+            carbs_per_unit=ingredient.macros_per_unit.carbs,
+            fat_per_unit=ingredient.macros_per_unit.fat,
         )
 
     def to_app_ingredient(self) -> Ingredient:
         return Ingredient(
             name=self.name,
-            macros_per_100g=MacroProfile(
-                calories=self.calories_per_100g,
-                protein=self.protein_per_100g,
-                carbs=self.carbs_per_100g,
-                fat=self.fat_per_100g,
+            macros_per_unit=MacroProfile(
+                calories=self.calories_per_unit,
+                protein=self.protein_per_unit,
+                carbs=self.carbs_per_unit,
+                fat=self.fat_per_unit,
             ),
-            weight_g=self.weight_g,
+            amount=self.amount,
+            unit=Unit(self.unit),
         )
 
 
@@ -108,7 +114,7 @@ class RecipeSchema(BaseModel):
     name: str = Field(description="Name of the Recipe")
     instructions: str = Field(default="", description="Detailed preparation and cooking instructions for the recipe")
     servings: int = Field(default=1, description="Amount of servings produced by the recipe")
-    ingredients: list[IngredientSchema] = Field(default_factory=list, description="List of ingredients with quantities and macros per 100g")
+    ingredients: list[IngredientSchema] = Field(default_factory=list, description="List of ingredients with quantities, units, and macros per 1 unit")
 
     @classmethod
     def from_app_recipe(cls, recipe: Recipe) -> "RecipeSchema":
@@ -175,8 +181,8 @@ chat_instance = None
 client = genai.Client()
 
 SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
-- When the user states what they ate, calculate macros accurately and call add_meals immediately.
-- When the user asks to create or save a recipe, calculate all ingredients with their weights and macros per 100g, write clear step-by-step instructions, and call add_recipe.
+- When the user states what they ate, calculate macros accurately and call add_meals immediately. Specify amount and unit (g, dkg, kg, ml, dl, l, serving).
+- When the user asks to create or save a recipe, calculate all ingredients with their amounts, units, and macros per 1 unit, write clear step-by-step instructions, and call add_recipe.
 - When the user asks about their saved recipes or meals, call get_recipes or get_meals.
 - When the user asks to update or remove meals or recipes, use update_meal, remove_meal, update_recipe, or remove_recipe.
 - When the user asks to log a saved recipe as a meal, call log_recipe_as_meal.

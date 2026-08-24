@@ -42,6 +42,8 @@ class RecipesState(rx.State):
             category=MealCategory.Lunch,
             macros=recipe.macros_per_serving(),
             date=nutrition_state.date_context,
+            amount=1.0,
+            unit=Unit("serving"),
         )
         await nutrition_state.add_meal(new_meal)
 
@@ -76,31 +78,14 @@ class RecipeDialogState(rx.State):
         except (ValueError, TypeError):
             self.servings = 1
 
-    def _copy_ingredients(self) -> list[Ingredient]:
-        copied = []
-        for ing in self.ingredients:
-            if isinstance(ing, dict):
-                copied.append(Ingredient(**ing))
-            else:
-                copied.append(Ingredient(
-                    name=ing.name,
-                    macros_per_100g=MacroProfile(
-                        calories=ing.macros_per_100g.calories,
-                        protein=ing.macros_per_100g.protein,
-                        carbs=ing.macros_per_100g.carbs,
-                        fat=ing.macros_per_100g.fat,
-                    ),
-                    weight_g=ing.weight_g,
-                ))
-        return copied
-
     def add_ingredient(self):
         items = self._copy_ingredients()
         items.append(
             Ingredient(
                 name="",
-                macros_per_100g=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
-                weight_g=100.0,
+                macros_per_unit=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
+                amount=100.0,
+                unit=Unit("g"),
             )
         )
         self.ingredients = items
@@ -117,14 +102,23 @@ class RecipeDialogState(rx.State):
             items[index].name = val
             self.ingredients = items
 
-    def update_ingredient_weight(self, index: int, val: str):
+    def update_ingredient_amount(self, index: int, val: str):
         try:
-            w = float(val)
+            a = float(val)
         except (ValueError, TypeError):
-            w = 0.0
+            a = 0.0
         items = self._copy_ingredients()
         if 0 <= index < len(items):
-            items[index].weight_g = w
+            items[index].amount = a
+            self.ingredients = items
+
+    def update_ingredient_weight(self, index: int, val: str):
+        self.update_ingredient_amount(index, val)
+
+    def update_ingredient_unit(self, index: int, val: str):
+        items = self._copy_ingredients()
+        if 0 <= index < len(items):
+            items[index].unit = Unit(val)
             self.ingredients = items
 
     def update_ingredient_calories(self, index: int, val: str):
@@ -134,7 +128,7 @@ class RecipeDialogState(rx.State):
             c = 0.0
         items = self._copy_ingredients()
         if 0 <= index < len(items):
-            items[index].macros_per_100g.calories = c
+            items[index].macros_per_unit.calories = c
             self.ingredients = items
 
     def update_ingredient_protein(self, index: int, val: str):
@@ -144,7 +138,7 @@ class RecipeDialogState(rx.State):
             p = 0.0
         items = self._copy_ingredients()
         if 0 <= index < len(items):
-            items[index].macros_per_100g.protein = p
+            items[index].macros_per_unit.protein = p
             self.ingredients = items
 
     def update_ingredient_carbs(self, index: int, val: str):
@@ -154,7 +148,7 @@ class RecipeDialogState(rx.State):
             cb = 0.0
         items = self._copy_ingredients()
         if 0 <= index < len(items):
-            items[index].macros_per_100g.carbs = cb
+            items[index].macros_per_unit.carbs = cb
             self.ingredients = items
 
     def update_ingredient_fat(self, index: int, val: str):
@@ -164,7 +158,7 @@ class RecipeDialogState(rx.State):
             f = 0.0
         items = self._copy_ingredients()
         if 0 <= index < len(items):
-            items[index].macros_per_100g.fat = f
+            items[index].macros_per_unit.fat = f
             self.ingredients = items
 
     def open_add_recipe(self):
@@ -176,8 +170,9 @@ class RecipeDialogState(rx.State):
         self.ingredients = [
             Ingredient(
                 name="",
-                macros_per_100g=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
-                weight_g=100.0,
+                macros_per_unit=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
+                amount=100.0,
+                unit=Unit("g"),
             )
         ]
         self.show_modal = True
@@ -196,22 +191,40 @@ class RecipeDialogState(rx.State):
             if isinstance(ing, dict):
                 ingredients_list.append(Ingredient(**ing))
             else:
+                macros = getattr(ing, "macros_per_unit", None)
+                if macros is None:
+                    macros = getattr(ing, "macros_per_100g", MacroProfile())
+                if isinstance(macros, dict):
+                    macros = MacroProfile(**macros)
+
+                unit = getattr(ing, "unit", Unit("g"))
+                if isinstance(unit, str):
+                    unit = Unit(unit)
+                elif isinstance(unit, dict):
+                    unit = Unit(**unit)
+
+                amount = getattr(ing, "amount", None)
+                if amount is None:
+                    amount = getattr(ing, "weight_g", 100.0)
+
                 ingredients_list.append(Ingredient(
                     name=ing.name,
-                    macros_per_100g=MacroProfile(
-                        calories=ing.macros_per_100g.calories,
-                        protein=ing.macros_per_100g.protein,
-                        carbs=ing.macros_per_100g.carbs,
-                        fat=ing.macros_per_100g.fat,
+                    macros_per_unit=MacroProfile(
+                        calories=macros.calories,
+                        protein=macros.protein,
+                        carbs=macros.carbs,
+                        fat=macros.fat,
                     ),
-                    weight_g=ing.weight_g,
+                    amount=amount,
+                    unit=unit,
                 ))
         if not ingredients_list:
             ingredients_list = [
                 Ingredient(
                     name="",
-                    macros_per_100g=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
-                    weight_g=100.0,
+                    macros_per_unit=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
+                    amount=100.0,
+                    unit=Unit("g"),
                 )
             ]
         self.ingredients = ingredients_list
@@ -228,9 +241,9 @@ class RecipeDialogState(rx.State):
 
         valid_ingredients = [
             ing for ing in self._copy_ingredients()
-            if ing.name.strip() or ing.weight_g > 0
+            if ing.name.strip() or ing.amount > 0
         ]
-        ingredients_text = ", ".join(f"{ing.weight_g:g}g {ing.name}" for ing in valid_ingredients if ing.name.strip())
+        ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
 
         if self.is_editing_recipe:
             updated_recipe = Recipe(
