@@ -30,7 +30,7 @@ def _get_csv_path(user_id: str, filename: str):
 
 
 data_cache: DataCache = DataCache()
-recipes_csv_lock = FileLock(_get_csv_path("shared", "recipes.csv"))
+recipes_csv_lock = FileLock(str(_get_csv_path("shared", "recipes.csv"))+".lock")
 
 
 def load_structured(csv_path: pathlib.Path, field_names: list[str], loader) -> list:

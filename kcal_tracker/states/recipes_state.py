@@ -6,7 +6,7 @@ import kcal_tracker.models.data_repository as data_repository
 
 
 class RecipesState(rx.State):
-    recipes: list[Recipe] = []
+    recipes: list[Recipe] = data_repository.load_recipes()
     user_id: str = "shared"
 
     # Computed vars
