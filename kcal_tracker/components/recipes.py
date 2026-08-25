@@ -55,7 +55,7 @@ def render_recipe_item(recipe: Recipe) -> rx.Component:
                         size="1",
                         variant="soft",
                         color_scheme="red",
-                        on_click=lambda: RecipesState.remove_recipe(recipe.id),
+                        on_click=lambda: RecipesState.remove_recipe(recipe.name),
                         style={"cursor": "pointer"},
                     ),
                     spacing="2",
@@ -355,6 +355,17 @@ def recipe_dialog() -> rx.Component:
                 "Enter recipe details, preparation instructions, and ingredients.",
                 size="2",
                 margin_bottom="4",
+            ),
+            rx.cond(
+                RecipeDialogState.error_message != "",
+                rx.callout(
+                    RecipeDialogState.error_message,
+                    icon="triangle-alert",
+                    color_scheme="red",
+                    size="1",
+                    margin_bottom="3",
+                    width="100%",
+                ),
             ),
             rx.flex(
                 rx.vstack(

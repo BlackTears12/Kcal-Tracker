@@ -15,27 +15,23 @@ class RecipesState(rx.State):
 
     # Event handlers
     def add_recipe(self, recipe: Recipe):
+        if self.has_recipe(recipe.name):
+            return rx.window_alert(f"A recipe with the name '{recipe.name}' already exists.")
         self.recipes = self.recipes + [recipe]
         data_repository.save_recipes(self.recipes)
 
-    def remove_recipe(self, id: int):
-        self.recipes = [r for r in self.recipes if r.id != id]
+    def remove_recipe(self, name: str):
+        self.recipes = [r for r in self.recipes if r.name.strip().lower() != name.strip().lower()]
         data_repository.save_recipes(self.recipes)
 
-    def update_recipe(self, recipe: Recipe):
-        self.recipes = [recipe if r.id == recipe.id else r for r in self.recipes]
+    def update_recipe(self, recipe: Recipe, old_name: str = ""):
+        target = (old_name or recipe.name).strip().lower()
+        self.recipes = [recipe if r.name.strip().lower() == target else r for r in self.recipes]
         data_repository.save_recipes(self.recipes)
 
-    def next_recipe_id(self) -> int:
-        existing_ids = {r.id for r in self.recipes}
-        new_id = 1
-        while new_id in existing_ids:
-            new_id += 1
-        return new_id
-
-    async def log_recipe_as_meal(self, recipe: Recipe):
-        if isinstance(recipe, dict):
-            recipe = Recipe(**recipe)
+    async def log_recipe_as_meal(self, recipe: Recipe | str):
+        if isinstance(recipe, str):
+            recipe = next(filter(lambda r: r.name.lower().strip() == recipe, self.recipes))
         nutrition_state = await self.get_state(NutritionState)
         new_meal = Meal(            
             name=recipe.name,
@@ -47,14 +43,17 @@ class RecipesState(rx.State):
         )
         await nutrition_state.add_meal(new_meal)
 
+    def has_recipe(self, name: str):
+        return name.lower().strip() in [r.name.lower().strip() for r in self.recipes]
 
 class RecipeDialogState(rx.State):
     show_modal: bool = False
     is_editing_recipe: bool = False
 
     # Form fields
-    recipe_id: int = 0
+    original_name: str = ""
     name: str = ""
+    error_message: str = ""
     instructions: str = ""
     servings: int = 1
     ingredients: list[Ingredient] = []
@@ -65,9 +64,12 @@ class RecipeDialogState(rx.State):
 
     def set_show_modal(self, val: bool):
         self.show_modal = val
+        if not val:
+            self.error_message = ""
 
     def set_name(self, val: str):
         self.name = val
+        self.error_message = ""
 
     def set_instructions(self, val: str):
         self.instructions = val
@@ -79,7 +81,7 @@ class RecipeDialogState(rx.State):
             self.servings = 1
 
     def add_ingredient(self):
-        items = self._copy_ingredients()
+        items = self.ingredients
         items.append(
             Ingredient(
                 name="",
@@ -91,13 +93,13 @@ class RecipeDialogState(rx.State):
         self.ingredients = items
 
     def remove_ingredient(self, index: int):
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items.pop(index)
             self.ingredients = items
 
     def update_ingredient_name(self, index: int, val: str):
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].name = val
             self.ingredients = items
@@ -107,7 +109,7 @@ class RecipeDialogState(rx.State):
             a = float(val)
         except (ValueError, TypeError):
             a = 0.0
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].amount = a
             self.ingredients = items
@@ -116,7 +118,7 @@ class RecipeDialogState(rx.State):
         self.update_ingredient_amount(index, val)
 
     def update_ingredient_unit(self, index: int, val: str):
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].unit = Unit(val)
             self.ingredients = items
@@ -126,7 +128,7 @@ class RecipeDialogState(rx.State):
             c = float(val)
         except (ValueError, TypeError):
             c = 0.0
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].macros_per_unit.calories = c
             self.ingredients = items
@@ -136,7 +138,7 @@ class RecipeDialogState(rx.State):
             p = float(val)
         except (ValueError, TypeError):
             p = 0.0
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].macros_per_unit.protein = p
             self.ingredients = items
@@ -146,7 +148,7 @@ class RecipeDialogState(rx.State):
             cb = float(val)
         except (ValueError, TypeError):
             cb = 0.0
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].macros_per_unit.carbs = cb
             self.ingredients = items
@@ -156,15 +158,16 @@ class RecipeDialogState(rx.State):
             f = float(val)
         except (ValueError, TypeError):
             f = 0.0
-        items = self._copy_ingredients()
+        items = self.ingredients
         if 0 <= index < len(items):
             items[index].macros_per_unit.fat = f
             self.ingredients = items
 
     def open_add_recipe(self):
         self.is_editing_recipe = False
-        self.recipe_id = 0
+        self.original_name = ""
         self.name = ""
+        self.error_message = ""
         self.instructions = ""
         self.servings = 1
         self.ingredients = [
@@ -181,85 +184,50 @@ class RecipeDialogState(rx.State):
         if isinstance(recipe, dict):
             recipe = Recipe(**recipe)
         self.is_editing_recipe = True
-        self.recipe_id = recipe.id
+        self.original_name = recipe.name
         self.name = recipe.name
+        self.error_message = ""
         self.instructions = recipe.instructions
         self.servings = recipe.servings
-        
-        ingredients_list = []
-        for ing in recipe.ingredients:
-            if isinstance(ing, dict):
-                ingredients_list.append(Ingredient(**ing))
-            else:
-                macros = getattr(ing, "macros_per_unit", None)
-                if macros is None:
-                    macros = getattr(ing, "macros_per_100g", MacroProfile())
-                if isinstance(macros, dict):
-                    macros = MacroProfile(**macros)
-
-                unit = getattr(ing, "unit", Unit("g"))
-                if isinstance(unit, str):
-                    unit = Unit(unit)
-                elif isinstance(unit, dict):
-                    unit = Unit(**unit)
-
-                amount = getattr(ing, "amount", None)
-                if amount is None:
-                    amount = getattr(ing, "weight_g", 100.0)
-
-                ingredients_list.append(Ingredient(
-                    name=ing.name,
-                    macros_per_unit=MacroProfile(
-                        calories=macros.calories,
-                        protein=macros.protein,
-                        carbs=macros.carbs,
-                        fat=macros.fat,
-                    ),
-                    amount=amount,
-                    unit=unit,
-                ))
-        if not ingredients_list:
-            ingredients_list = [
-                Ingredient(
-                    name="",
-                    macros_per_unit=MacroProfile(calories=0.0, protein=0.0, carbs=0.0, fat=0.0),
-                    amount=100.0,
-                    unit=Unit("g"),
-                )
-            ]
-        self.ingredients = ingredients_list
+        self.ingredients = recipe.ingredients
         self.show_modal = True
 
     def close_modal(self):
         self.show_modal = False
+        self.error_message = ""
 
     async def save_recipe(self):
-        if not self.name.strip():
+        trimmed_name = self.name.strip()
+        if not trimmed_name:
+            self.error_message = "Recipe title cannot be empty."
             return
 
         recipes_state = await self.get_state(RecipesState)
+        name_changed = trimmed_name.lower() != self.original_name.strip().lower()
+
+        # Check for duplicate recipe name
+        if (self.is_editing_recipe and name_changed and recipes_state.has_recipe(trimmed_name)) or not self.is_editing_recipe:
+                self.error_message = f"A recipe with the name '{trimmed_name}' already exists."
+                return rx.window_alert(f"A recipe with the name '{trimmed_name}' already exists.")
 
         valid_ingredients = [
-            ing for ing in self._copy_ingredients()
+            ing for ing in self.ingredients
             if ing.name.strip() or ing.amount > 0
         ]
         ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
 
         if self.is_editing_recipe:
             updated_recipe = Recipe(
-                id=self.recipe_id,
-                name=self.name.strip(),
+                name=trimmed_name,
                 instructions=self.instructions.strip(),
                 ingredients=valid_ingredients,
                 servings=max(1, int(self.servings)),
                 ingredients_text=ingredients_text,
             )
-            recipes_state.update_recipe(updated_recipe)
+            recipes_state.update_recipe(updated_recipe, old_name=self.original_name)
         else:
-            new_id = recipes_state.next_recipe_id()
             new_recipe = Recipe(
-                id=new_id,
-                name=self.name.strip(),
+                name=trimmed_name,
                 instructions=self.instructions.strip(),
                 ingredients=valid_ingredients,
                 servings=max(1, int(self.servings)),
@@ -268,3 +236,4 @@ class RecipeDialogState(rx.State):
             recipes_state.add_recipe(new_recipe)
 
         self.show_modal = False
+        self.error_message = ""

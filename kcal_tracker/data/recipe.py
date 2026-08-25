@@ -41,7 +41,6 @@ class Ingredient:
 
 @dataclass
 class Recipe:
-    id: int = 0
     name: str = ""
     ingredients: list[Ingredient] = field(default_factory=list)
     servings: int = 1
