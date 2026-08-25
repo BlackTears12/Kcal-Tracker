@@ -31,7 +31,7 @@ class RecipesState(rx.State):
 
     async def log_recipe_as_meal(self, recipe: Recipe | str):
         if isinstance(recipe, str):
-            recipe = next(filter(lambda r: r.name.lower().strip() == recipe, self.recipes))
+            recipe = self.get_recipe(recipe)
         nutrition_state = await self.get_state(NutritionState)
         new_meal = Meal(            
             name=recipe.name,
@@ -46,6 +46,9 @@ class RecipesState(rx.State):
     def has_recipe(self, name: str):
         return name.lower().strip() in [r.name.lower().strip() for r in self.recipes]
 
+    def get_recipe(self, name: str):
+        return next(filter(lambda r: r.name.lower().strip() == name.lower().strip(), self.recipes))
+
 class RecipeDialogState(rx.State):
     show_modal: bool = False
     is_editing_recipe: bool = False
@@ -57,6 +60,7 @@ class RecipeDialogState(rx.State):
     instructions: str = ""
     servings: int = 1
     ingredients: list[Ingredient] = []
+    scale_macros: bool = False
 
     @rx.var
     def modal_title(self) -> str:
@@ -79,6 +83,9 @@ class RecipeDialogState(rx.State):
             self.servings = int(val)
         except (ValueError, TypeError):
             self.servings = 1
+
+    def set_scale_macros(self, val: bool):
+        self.scale_macros = val
 
     def add_ingredient(self):
         items = self.ingredients
@@ -178,11 +185,10 @@ class RecipeDialogState(rx.State):
                 unit=Unit("g"),
             )
         ]
+        self.scale_macros = False
         self.show_modal = True
 
     def open_edit_recipe(self, recipe: Recipe):
-        if isinstance(recipe, dict):
-            recipe = Recipe(**recipe)
         self.is_editing_recipe = True
         self.original_name = recipe.name
         self.name = recipe.name
@@ -190,6 +196,7 @@ class RecipeDialogState(rx.State):
         self.instructions = recipe.instructions
         self.servings = recipe.servings
         self.ingredients = recipe.ingredients
+        self.scale_macros = False
         self.show_modal = True
 
     def close_modal(self):
@@ -206,17 +213,14 @@ class RecipeDialogState(rx.State):
         name_changed = trimmed_name.lower() != self.original_name.strip().lower()
 
         # Check for duplicate recipe name
-        if (self.is_editing_recipe and name_changed and recipes_state.has_recipe(trimmed_name)) or not self.is_editing_recipe:
-                self.error_message = f"A recipe with the name '{trimmed_name}' already exists."
-                return rx.window_alert(f"A recipe with the name '{trimmed_name}' already exists.")
+        if (self.is_editing_recipe and name_changed and recipes_state.has_recipe(trimmed_name)) or (not self.is_editing_recipe and recipes_state.has_recipe(trimmed_name)):
+            self.error_message = f"A recipe with the name '{trimmed_name}' already exists."
+            return rx.window_alert(f"A recipe with the name '{trimmed_name}' already exists.")
 
-        valid_ingredients = [
-            ing for ing in self.ingredients
-            if ing.name.strip() or ing.amount > 0
-        ]
-        ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
-
+        valid_ingredients = await self.handle_ingredients_on_save()
         if self.is_editing_recipe:
+            ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
+
             updated_recipe = Recipe(
                 name=trimmed_name,
                 instructions=self.instructions.strip(),
@@ -226,6 +230,7 @@ class RecipeDialogState(rx.State):
             )
             recipes_state.update_recipe(updated_recipe, old_name=self.original_name)
         else:
+            ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
             new_recipe = Recipe(
                 name=trimmed_name,
                 instructions=self.instructions.strip(),
@@ -237,3 +242,25 @@ class RecipeDialogState(rx.State):
 
         self.show_modal = False
         self.error_message = ""
+
+    async def handle_ingredients_on_save(self):
+        new_ingredients = [
+            ing for ing in self.ingredients if ing.name.strip() or ing.amount > 0
+        ]
+        new_ingredient_names = [ing.name for ing in new_ingredients]
+        def get_ingredient(name: str):
+            return next(filter(lambda ing: ing.name.lower().strip() == name.lower().strip(), new_ingredients))
+            
+        recipes_state = await self.get_state(RecipesState)
+        if self.scale_macros:
+          existing = recipes_state.get_recipe(self.original_name)
+          scaled_ingredients = []
+          for ing in existing.ingredients:
+              if ing.name not in new_ingredient_names:
+                  continue
+              new_ing = get_ingredient(ing.name)
+              scaled_ingredients.append(ing.scale_size(new_ing.amount,new_ing.unit))
+          new_ingredients = scaled_ingredients
+        return new_ingredients
+
+        

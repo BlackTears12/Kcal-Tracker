@@ -406,6 +406,15 @@ def recipe_dialog() -> rx.Component:
                         width="100%",
                         spacing="1",
                     ),
+                    rx.cond(
+                        RecipeDialogState.is_editing_recipe,
+                        rx.checkbox(
+                            "Scale macros for new amount / unit",
+                            checked=RecipeDialogState.scale_macros,
+                            on_change=RecipeDialogState.set_scale_macros,
+                            size="2",
+                        ),
+                    ),
                     rx.vstack(
                         rx.hstack(
                             rx.text("Ingredients", size="2", weight="bold"),

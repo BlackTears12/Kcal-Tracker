@@ -18,6 +18,16 @@ class Ingredient:
         elif isinstance(self.unit, dict):
             self.unit = Unit(**self.unit)
 
+    def scale_size(self, new_amount: float, new_unit: Unit):
+        old_amount = self.amount if self.amount else 1.0
+        factor = new_amount * new_unit.conversion_factor(self.unit) / old_amount
+        return Ingredient(
+            name=self.name,
+            amount=new_amount,
+            unit=new_unit,
+            macros_per_unit=self.macros_per_unit.scale(factor),
+        )
+
     def calories(self) -> float:
         return round(self.macros_per_unit.calories * self.amount, 1)
 
