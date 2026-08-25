@@ -4,6 +4,7 @@ from reflex_google_auth import GoogleAuthState
 from reflex_google_auth.state import get_token
 from kcal_tracker import state_accessor
 from kcal_tracker.states.nutrition_state import NutritionState
+from kcal_tracker.states.recipes_state import RecipesState
 
 
 # 1. Inherit from GoogleAuthState to track user login status
@@ -30,6 +31,8 @@ class User(GoogleAuthState):
             return
         nutrition_state = await self.get_state(NutritionState)
         nutrition_state.on_login(self.get_id())
+        recipes_state = await self.get_state(RecipesState)
+        recipes_state.on_login(self.get_id())
 
     @rx.event
     async def on_success(self, response: dict):

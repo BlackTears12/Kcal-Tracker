@@ -33,22 +33,19 @@ data_cache: DataCache = DataCache()
 recipes_csv_lock = FileLock(_get_csv_path("shared", "recipes.csv"))
 
 
-def load_structured(csv_path: pathlib.Path, field_names: list[str], loader, log: str = "") -> list:
+def load_structured(csv_path: pathlib.Path, field_names: list[str], loader) -> list:
     if not csv_path.exists():
         return []
-    if log:
-        print(log)
     with open(csv_path, "r") as f:
-        reader = csv.DictReader(f, field_names)
+        reader = csv.DictReader(f)
         return [loader(row) for row in reader]
 
 
-def save_structured(csv_path: pathlib.Path, field_names: list[str], data: list[dict], log: str):
+def save_structured(csv_path: pathlib.Path, field_names: list[str], data: list[dict]):
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    if log:
-        print(log)
     with open(csv_path, "w") as f:
         writer = csv.DictWriter(f, field_names)
+        writer.writeheader()
         writer.writerows(data)
 
 
@@ -56,7 +53,7 @@ def save_data_cache():
     if not data_cache.user_id:
         return
     csv_path = _get_csv_path(data_cache.user_id, "meals.csv")
-    log = f"Saving meals to {str(csv_path.absolute())}"
+    print(f"Saving meals to {str(csv_path.absolute())}")
     merged = list(itertools.chain.from_iterable(data_cache.meal_data.values()))
     data = [{"name": m.name,
              "category": m.category,
@@ -67,13 +64,13 @@ def save_data_cache():
              "date": m.date.isoformat(),
              "amount": m.amount,
              "unit": m.unit.unit} for m in merged]
-    save_structured(csv_path, MEAL_FIELD_NAMES, data, log)
+    save_structured(csv_path, MEAL_FIELD_NAMES, data)
 
 
 def load_data_cache(user_id: str) -> DataCache:
     csv_path = _get_csv_path(user_id, "meals.csv")
     cache = DataCache(user_id=user_id)
-    log = f"Loading meals from {csv_path}"
+    print(f"Loading meals from {csv_path}")
     meals = load_structured(csv_path, MEAL_FIELD_NAMES, lambda row: Meal(
         name=row["name"],
         category=MealCategory(row["category"]),
@@ -81,7 +78,7 @@ def load_data_cache(user_id: str) -> DataCache:
                             float(row["carbs_g"]), float(row["fat_g"])),
         date=date.fromisoformat(row["date"]),
         amount=float(row["amount"]),
-        unit=Unit(row["unit"])), log)
+        unit=Unit(row["unit"])))
     for m in meals:
         cache.meal_data[m.date].append(m)
     return cache
@@ -106,6 +103,7 @@ def save_recipes(recipes: list[Recipe]):
                          str(ing.macros_per_unit.carbs),
                          str(ing.macros_per_unit.fat), str(ing.amount), ing.unit.unit])
     csv_path = _get_csv_path("shared", "recipes.csv")
+    print(f"Saving recipes to {csv_path}")
     data = [{
         "name": r.name,
         "servings": r.servings,
@@ -113,7 +111,7 @@ def save_recipes(recipes: list[Recipe]):
         "ingredient_list": "|".join([ingr_str(i) for i in r.ingredients])
     } for r in recipes]
     with recipes_csv_lock:
-        save_structured(csv_path, RECIPES_FIELD_NAMES, data, "Saving recipes")
+        save_structured(csv_path, RECIPES_FIELD_NAMES, data)
 
 
 def load_recipes():
@@ -124,6 +122,7 @@ def load_recipes():
                 float(parts[3]), float(parts[4])),
             amount=float(parts[5]), unit=Unit(parts[6]))
     csv_path = _get_csv_path("shared", "recipes.csv")
+    print(f"Loading recipes from {csv_path}")
     with recipes_csv_lock:
         return load_structured(csv_path, RECIPES_FIELD_NAMES,
                                lambda row: Recipe(name=row["name"],servings=int(row["servings"]),
@@ -158,3 +157,12 @@ def save_profile_data(user_id: str, data: ProfileData):
             "target_carbs": data.targets.carbs,
             "target_fat": data.targets.fat,
         })
+
+
+def adjust_logged_recipe_meal_instances(old_name: str, serving: Meal):
+    merged = list(itertools.chain.from_iterable(data_cache.meal_data.values()))
+    for m in merged:
+        if m.name.lower().strip() == old_name.lower().strip():
+            m.macros = serving.macros
+            m.name = serving.name
+    save_data_cache()

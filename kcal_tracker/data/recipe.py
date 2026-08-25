@@ -63,6 +63,8 @@ class Recipe:
     fat: float = 0.0
 
     def __post_init__(self):
+        if isinstance(self.servings, str):
+            self.servings = int(self.servings)
         if self.ingredients:
             self.ingredients = [
                 Ingredient(**ing) if isinstance(ing, dict) else ing

@@ -157,7 +157,7 @@ async def update_recipe(recipe: RecipeSchema):
     """Update an existing saved recipe with the specified name."""
     print("update_recipe!!!")
     recipes_state = await state_accessor.get_recipes_state()
-    recipes_state.update_recipe(recipe.to_app_recipe())
+    await recipes_state.update_recipe(recipe.to_app_recipe())
 
 
 async def remove_recipe(name: str):

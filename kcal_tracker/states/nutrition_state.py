@@ -125,6 +125,9 @@ class NutritionState(rx.State):
         if self.user_id == user_id:
             return
         self.user_id = user_id
+        self.refresh()
+
+    def refresh(self):
         self.profile_data = data_repository.load_profile_data(self.user_id)
         self.view_date(date.today())
 

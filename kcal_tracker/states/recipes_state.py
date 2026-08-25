@@ -6,7 +6,8 @@ import kcal_tracker.models.data_repository as data_repository
 
 
 class RecipesState(rx.State):
-    recipes: list[Recipe] = data_repository.load_recipes() 
+    recipes: list[Recipe] = []
+    user_id: str = "shared"
 
     # Computed vars
     @rx.var
@@ -14,6 +15,14 @@ class RecipesState(rx.State):
         return len(self.recipes)
 
     # Event handlers
+    def on_login(self, user_id: str):
+        if not user_id or user_id == "shared":
+            return
+        if self.user_id == user_id:
+            return
+        self.user_id = user_id
+        self.recipes = data_repository.load_recipes()
+        
     def add_recipe(self, recipe: Recipe):
         if self.has_recipe(recipe.name):
             return rx.window_alert(f"A recipe with the name '{recipe.name}' already exists.")
@@ -24,14 +33,26 @@ class RecipesState(rx.State):
         self.recipes = [r for r in self.recipes if r.name.strip().lower() != name.strip().lower()]
         data_repository.save_recipes(self.recipes)
 
-    def update_recipe(self, recipe: Recipe, old_name: str = ""):
+    async def update_recipe(self, recipe: Recipe, old_name: str = "", adjust_logged_meals: bool = True):
         target = (old_name or recipe.name).strip().lower()
         self.recipes = [recipe if r.name.strip().lower() == target else r for r in self.recipes]
         data_repository.save_recipes(self.recipes)
+        if adjust_logged_meals:
+          meal = Meal(
+              name=recipe.name,
+              macros=recipe.macros_per_serving(),
+              amount=1.0,
+              unit=Unit("serving")
+          )
+          data_repository.adjust_logged_recipe_meal_instances(old_name, meal)
+          nutrition_state = await self.get_state(NutritionState)
+          nutrition_state.refresh()
 
     async def log_recipe_as_meal(self, recipe: Recipe | str):
         if isinstance(recipe, str):
             recipe = self.get_recipe(recipe)
+        if isinstance(recipe, dict):
+            recipe = Recipe(**recipe)
         nutrition_state = await self.get_state(NutritionState)
         new_meal = Meal(            
             name=recipe.name,
@@ -60,7 +81,8 @@ class RecipeDialogState(rx.State):
     instructions: str = ""
     servings: int = 1
     ingredients: list[Ingredient] = []
-    scale_macros: bool = False
+    scale_macros: bool = True
+    adjust_logged_meals: bool = False
 
     @rx.var
     def modal_title(self) -> str:
@@ -86,6 +108,9 @@ class RecipeDialogState(rx.State):
 
     def set_scale_macros(self, val: bool):
         self.scale_macros = val
+
+    def set_adjust_logged_meals(self, val: bool):
+        self.adjust_logged_meals = val
 
     def add_ingredient(self):
         items = self.ingredients
@@ -186,6 +211,7 @@ class RecipeDialogState(rx.State):
             )
         ]
         self.scale_macros = False
+        self.adjust_logged_meals = True
         self.show_modal = True
 
     def open_edit_recipe(self, recipe: Recipe):
@@ -197,11 +223,13 @@ class RecipeDialogState(rx.State):
         self.servings = recipe.servings
         self.ingredients = recipe.ingredients
         self.scale_macros = False
+        self.adjust_logged_meals = True
         self.show_modal = True
 
     def close_modal(self):
         self.show_modal = False
         self.error_message = ""
+        self.adjust_logged_meals = True
 
     async def save_recipe(self):
         trimmed_name = self.name.strip()
@@ -228,7 +256,7 @@ class RecipeDialogState(rx.State):
                 servings=max(1, int(self.servings)),
                 ingredients_text=ingredients_text,
             )
-            recipes_state.update_recipe(updated_recipe, old_name=self.original_name)
+            await recipes_state.update_recipe(updated_recipe, old_name=self.original_name, adjust_logged_meals=self.adjust_logged_meals)
         else:
             ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
             new_recipe = Recipe(
