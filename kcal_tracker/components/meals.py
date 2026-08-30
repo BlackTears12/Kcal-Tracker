@@ -7,7 +7,7 @@ from kcal_tracker.states import (
 
 
 def render_meal_item(meal: Meal) -> rx.Component:
-    """Renders an individual logged meal row/card."""
+    """Renders an individual logged meal row/card with responsive mobile-friendly action buttons."""
     category_colors = {
         "Breakfast": "amber",
         "Lunch": "blue",
@@ -16,81 +16,107 @@ def render_meal_item(meal: Meal) -> rx.Component:
     }
 
     return rx.card(
-        rx.flex(
-            # Left: Category Icon & Details
-            rx.hstack(
-                rx.box(
-                    rx.icon("utensils", size=18, color="var(--gray-11)"),
-                    style={
-                        "background": "var(--gray-3)",
-                        "padding": "10px",
-                        "border_radius": "10px",
-                        "display": "flex",
-                        "align_items": "center",
-                        "justify_content": "center",
-                    },
-                ),
-                rx.vstack(
-                    rx.hstack(
-                        rx.heading(meal.name, size="3", weight="bold"),
-                        rx.badge(
-                            meal.category,
-                            color_scheme=category_colors.get(meal.category, "gray"),
-                            variant="soft",
-                            size="1",
-                        ),
-                        align="center",
-                        spacing="2",
+        rx.vstack(
+            # Top Row: Category Icon + Meal Name + Category Badge (Left) and Edit/Delete Buttons (Right)
+            rx.flex(
+                # Left: Icon & Meal Name + Category Badge
+                rx.hstack(
+                    rx.box(
+                        rx.icon("utensils", size=18, color="var(--gray-11)"),
+                        style={
+                            "background": "var(--gray-3)",
+                            "padding": "8px",
+                            "border_radius": "10px",
+                            "display": "flex",
+                            "align_items": "center",
+                            "justify_content": "center",
+                            "min_width": "34px",
+                        },
                     ),
-                    rx.hstack(
-                        rx.badge(f"{meal.weight}g", color_scheme="gray", variant="surface", size="1"),
-                        rx.badge(f"{meal.macros.calories} kcal", color_scheme="orange", variant="surface", size="1"),
-                        rx.badge(f"{meal.macros.protein}g P", color_scheme="blue", variant="surface", size="1"),
-                        rx.badge(f"{meal.macros.carbs}g C", color_scheme="amber", variant="surface", size="1"),
-                        rx.badge(f"{meal.macros.fat}g F", color_scheme="green", variant="surface", size="1"),
-                        spacing="2",
-                        align="center",
+                    rx.vstack(
+                        rx.hstack(
+                            rx.heading(
+                                meal.name,
+                                size="3",
+                                weight="bold",
+                                style={
+                                    "overflow": "hidden",
+                                    "text_overflow": "ellipsis",
+                                    "white_space": "nowrap",
+                                },
+                            ),
+                            rx.badge(
+                                meal.category,
+                                color_scheme=category_colors.get(meal.category, "gray"),
+                                variant="soft",
+                                size="1",
+                                radius="full",
+                            ),
+                            align="center",
+                            spacing="2",
+                            wrap="wrap",
+                        ),
+                        spacing="0",
+                        align="start",
+                    ),
+                    spacing="2",
+                    align="center",
+                    flex="1",
+                    min_width="0",
+                ),
+                # Right: Edit & Delete action buttons (always visible and touchable on mobile)
+                rx.hstack(
+                    rx.button(
+                        rx.icon("square-pen", size=14),
+                        rx.text("Edit", display=rx.breakpoints(initial="none", sm="inline")),
+                        size="1",
+                        variant="soft",
+                        color_scheme="blue",
+                        on_click=lambda: MealDialogState.open_edit_meal(meal),
+                        style={"cursor": "pointer", "border_radius": "8px"},
+                    ),
+                    rx.button(
+                        rx.icon("trash-2", size=14),
+                        size="1",
+                        variant="soft",
+                        color_scheme="red",
+                        on_click=lambda: NutritionState.remove_meal(meal.id),
+                        style={"cursor": "pointer", "border_radius": "8px"},
                     ),
                     spacing="1",
+                    align="center",
+                    flex_shrink="0",
                 ),
-                spacing="3",
+                justify="between",
                 align="center",
+                width="100%",
+                gap="2",
             ),
-            # Right: Edit & Delete buttons
-            rx.hstack(
-                rx.button(
-                    rx.icon("square-pen", size=15),
-                    "Edit",
-                    size="1",
-                    variant="soft",
-                    color_scheme="blue",
-                    on_click=lambda: MealDialogState.open_edit_meal(meal),
-                    style={"cursor": "pointer"},
-                ),
-                rx.button(
-                    rx.icon("trash-2", size=15),
-                    size="1",
-                    variant="soft",
-                    color_scheme="red",
-                    on_click=lambda: NutritionState.remove_meal(meal.id),
-                    style={"cursor": "pointer"},
-                ),
+            # Bottom Row: Macro Badges (wrapping cleanly so it never overflows or pushes out action buttons)
+            rx.flex(
+                rx.badge(f"{meal.weight}g", color_scheme="gray", variant="surface", size="1"),
+                rx.badge(f"{meal.macros.calories} kcal", color_scheme="orange", variant="surface", size="1"),
+                rx.badge(f"{meal.macros.protein}g P", color_scheme="blue", variant="surface", size="1"),
+                rx.badge(f"{meal.macros.carbs}g C", color_scheme="amber", variant="surface", size="1"),
+                rx.badge(f"{meal.macros.fat}g F", color_scheme="green", variant="surface", size="1"),
                 spacing="2",
-                align="center",
+                wrap="wrap",
+                width="100%",
             ),
-            justify="between",
-            align="center",
+            spacing="2",
             width="100%",
         ),
         size="2",
         style={
             "background": "var(--gray-1)",
             "border": "1px solid var(--gray-4)",
-            "border_radius": "12px",
+            "border_radius": "14px",
+            "padding": "12px 14px",
             "transition": "all 0.2s ease",
+            "overflow": "hidden",
             "&:hover": {
                 "border_color": "var(--gray-6)",
-                "box_shadow": "0 2px 12px rgba(0,0,0,0.04)",
+                "box_shadow": "0 2px 12px rgba(0,0,0,0.2)",
             },
         },
         width="100%",
@@ -101,7 +127,7 @@ def meals_section() -> rx.Component:
     """Today's logged meals list section (Material Dark Style)."""
     return rx.card(
         rx.vstack(
-            rx.hstack(
+            rx.flex(
                 rx.hstack(
                     rx.box(
                         rx.icon("utensils", size=18, color="white"),
@@ -132,6 +158,7 @@ def meals_section() -> rx.Component:
                     ),
                     spacing="2",
                     align="center",
+                    wrap="wrap",
                 ),
                 rx.button(
                     rx.icon("plus", size=16),
@@ -139,11 +166,13 @@ def meals_section() -> rx.Component:
                     size="2",
                     color_scheme="orange",
                     on_click=MealDialogState.open_add_meal,
-                    style={"cursor": "pointer", "border_radius": "10px"},
+                    style={"cursor": "pointer", "border_radius": "10px", "flex_shrink": "0"},
                 ),
                 justify="between",
                 align="center",
                 width="100%",
+                gap="2",
+                wrap="wrap",
             ),
             rx.divider(size="4"),
             rx.cond(
