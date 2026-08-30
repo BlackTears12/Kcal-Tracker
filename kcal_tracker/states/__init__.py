@@ -3,7 +3,6 @@ from .nutrition_state import (
     MealCategory,
     Meal,
     Unit,
-    ProfileData,
     NutritionState,
     MealDialogState,
     TargetDialogState,
@@ -18,6 +17,10 @@ from .chat_state import (
     ChatMessage,
     ChatState,
 )
+from .profile_state import (
+    Profile,
+    ProfileState
+)
 from .ui_state import UIState
 
 __all__ = [
@@ -25,7 +28,8 @@ __all__ = [
     "MealCategory",
     "Meal",
     "Unit",
-    "ProfileData",
+    "Profile",
+    "ProfileState",
     "NutritionState",
     "MealDialogState",
     "TargetDialogState",

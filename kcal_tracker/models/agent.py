@@ -214,6 +214,6 @@ async def send_prompt(prompt: str) -> str:
     global chat_instance
     if chat_instance is None:
         init_agent()
-    response = await chat_instance.send_message(prompt)
+    response = await chat_instance.send_message(prompt) # type: ignore
     return response.text or ""
     

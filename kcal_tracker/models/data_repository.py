@@ -2,7 +2,7 @@ import csv
 import pathlib
 from datetime import date, datetime
 from kcal_tracker.data.meal import *
-from kcal_tracker.data.profiledata import *
+from kcal_tracker.states.profile_state import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
 from collections import defaultdict
 import itertools
@@ -13,8 +13,8 @@ STORAGE_DIR = "./data"
 
 MEAL_FIELD_NAMES = ["name", "category", "calories",
                     "protein_g", "carbs_g", "fat_g", "amount", "unit", "date"]
-PROFILE_FIELD_NAMES = ["target_kcal",
-                       "target_protein", "target_carbs", "target_fat"]
+PROFILE_FIELD_NAMES = ["email", "name",
+                       "target_kcal","target_protein", "target_carbs", "target_fat"]
 RECIPES_FIELD_NAMES = ["name", "servings", "instructions", "ingredient_list"]
 
 
@@ -23,6 +23,8 @@ class DataCache:
     user_id: str = ""
     meal_data: dict[date, list[Meal]] = field(
         default_factory=lambda: defaultdict(list))
+    profile_data: Profile = field(default_factory=Profile)
+    target_data: MacroProfile = field(default_factory=MacroProfile)
 
 
 def _get_csv_path(user_id: str, filename: str):
@@ -48,8 +50,9 @@ def save_structured(csv_path: pathlib.Path, field_names: list[str], data: list[d
         writer.writeheader()
         writer.writerows(data)
 
+# region data cache handling
 
-def save_data_cache():
+def _save_meal_data_cache():
     if not data_cache.user_id:
         return
     csv_path = _get_csv_path(data_cache.user_id, "meals.csv")
@@ -67,10 +70,10 @@ def save_data_cache():
     save_structured(csv_path, MEAL_FIELD_NAMES, data)
 
 
-def load_data_cache(user_id: str) -> DataCache:
-    csv_path = _get_csv_path(user_id, "meals.csv")
-    cache = DataCache(user_id=user_id)
+def _load_meal_data_cache(user_id: str) -> dict[date, list[Meal]]:
+    csv_path = _get_csv_path(user_id, "meals.csv")    
     print(f"Loading meals from {csv_path}")
+    meal_data = defaultdict(list)
     meals = load_structured(csv_path, MEAL_FIELD_NAMES, lambda row: Meal(
         name=row["name"],
         category=MealCategory(row["category"]),
@@ -80,21 +83,65 @@ def load_data_cache(user_id: str) -> DataCache:
         amount=float(row["amount"]),
         unit=Unit(row["unit"])))
     for m in meals:
-        cache.meal_data[m.date].append(m)
-    return cache
+        meal_data[m.date].append(m)
+    return meal_data
 
+def _save_profile_data_cache(user_id: str):
+    csv_path = _get_csv_path(user_id, "profile.csv")
+    targets = data_cache.target_data
+    profile = data_cache.profile_data
+    with open(csv_path, "w") as f:
+        writer = csv.DictWriter(f, PROFILE_FIELD_NAMES)
+        writer.writerow({
+            "email": profile.email,
+            "name": profile.name,
+            "target_kcal": targets.calories,
+            "target_protein": targets.protein,
+            "target_carbs": targets.carbs,
+            "target_fat": targets.fat,
+        })
+
+def _load_profile_data_cache(user_id: str) -> tuple[Profile, MacroProfile]:
+    csv_path = _get_csv_path(user_id, "profile.csv")
+    if not csv_path.exists():
+        return Profile(), MacroProfile()
+    with open(csv_path, "r") as f:
+        reader = csv.DictReader(f, PROFILE_FIELD_NAMES)
+        row = next(reader)
+        target = MacroProfile(
+          calories=float(row["target_kcal"]),
+          protein=float(row["target_protein"]),
+          carbs=float(row["target_carbs"]),
+          fat=float(row["target_fat"]))
+        profile = Profile(
+            email=row["email"],
+            name=row["name"]
+        )
+        return profile, target
+
+def _load_data_cache(user_id: str) -> DataCache:
+    global data_cache
+    if data_cache.user_id != user_id:
+        profile, target = _load_profile_data_cache(user_id)
+        data_cache = DataCache(
+            user_id=user_id,
+            meal_data=_load_meal_data_cache(user_id),
+            profile_data=profile,
+            target_data=target
+            )        
+    return data_cache
+
+#endregion
+
+#region data handling API
 
 def save_meals(user_id: str, meals: list[Meal], date_context: date):
     data_cache.meal_data[date_context] = meals
-    save_data_cache()
+    _save_meal_data_cache()
 
 
-def load_meals(user_id: str, date_context: date) -> list[Meal]:
-    global data_cache
-    if data_cache.user_id != user_id:
-        data_cache = load_data_cache(user_id)
-    return data_cache.meal_data[date_context]
-
+def load_meals(user_id: str, date_context: date) -> list[Meal]:    
+    return _load_data_cache(user_id).meal_data[date_context]
 
 def save_recipes(recipes: list[Recipe]):
     def ingr_str(ing: Ingredient):
@@ -130,34 +177,19 @@ def load_recipes():
                                                   ingredients=[ingr_from_str(s) for s in row["ingredient_list"].split("|")]))
 
 
-def load_profile_data(user_id: str) -> ProfileData:
-    csv_path = _get_csv_path(user_id, "profile.csv")
-    if not csv_path.exists():
-        return ProfileData()
-    with open(csv_path, "r") as f:
-        reader = csv.DictReader(f, PROFILE_FIELD_NAMES)
-        row = next(reader)
-        return ProfileData(
-            targets=MacroProfile(
-                calories=float(row["target_kcal"]),
-                protein=float(row["target_protein"]),
-                carbs=float(row["target_carbs"]),
-                fat=float(row["target_fat"])
-            )
-        )
+def save_targets(user_id: str, target: MacroProfile):
+    data_cache.target_data = target
+    _save_profile_data_cache(user_id)
 
+def load_targets(user_id: str) -> MacroProfile:
+    return _load_data_cache(user_id).target_data
 
-def save_profile_data(user_id: str, data: ProfileData):
-    csv_path = _get_csv_path(user_id, "profile.csv")
-    with open(csv_path, "w") as f:
-        writer = csv.DictWriter(f, PROFILE_FIELD_NAMES)
-        writer.writerow({
-            "target_kcal": data.targets.calories,
-            "target_protein": data.targets.protein,
-            "target_carbs": data.targets.carbs,
-            "target_fat": data.targets.fat,
-        })
+def save_profile(user_id: str, profile: Profile):
+    data_cache.profile_data = profile
+    _save_profile_data_cache(user_id)
 
+def load_profile(user_id: str) -> Profile:
+    return _load_data_cache(user_id).profile_data    
 
 def adjust_logged_recipe_meal_instances(old_name: str, serving: Meal):
     merged = list(itertools.chain.from_iterable(data_cache.meal_data.values()))
@@ -165,4 +197,6 @@ def adjust_logged_recipe_meal_instances(old_name: str, serving: Meal):
         if m.name.lower().strip() == old_name.lower().strip():
             m.macros = serving.macros
             m.name = serving.name
-    save_data_cache()
+    _save_meal_data_cache()
+
+#endregion
