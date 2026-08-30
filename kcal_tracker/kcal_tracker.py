@@ -61,7 +61,7 @@ def index() -> rx.Component:
     return google_oauth_provider(
         rx.box(
             rx.cond(
-                Login.token_is_valid,
+                Login.is_valid_login,
                 content.main_content(),
                 login_content(),
             ),

@@ -1,14 +1,6 @@
 import reflex as rx
 from dataclasses import dataclass
-
-users = {
-    "szombati.balint@gmail.com" : "balint",
-    "ughybeus@gmail.com" : "bea",
-    "bajkolara50@gmail.com": "lily"
-}
-
-def is_valid_email(email: str):
-    return email in users.keys()
+import unidecode
 
 @dataclass 
 class Profile:
@@ -21,6 +13,10 @@ class ProfileState(rx.State):
     def on_login(self, profile: Profile):
         self.profile = profile
 
+    @rx.var
+    def name(self) -> str:
+        return self.profile.name
+
     def get_id(self):
-        return users[self.profile.email]
+        return unidecode.unidecode(self.profile.name, "utf-8").lower()
         
