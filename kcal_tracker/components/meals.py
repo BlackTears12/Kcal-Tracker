@@ -1,10 +1,11 @@
 import reflex as rx
 from kcal_tracker.states import (
     Meal,
+    Unit,
     NutritionState,
     MealDialogState,
 )
-
+import kcal_tracker.data.unit as unit
 
 def render_meal_item(meal: Meal) -> rx.Component:
     """Renders an individual logged meal row/card with responsive mobile-friendly action buttons."""
@@ -94,7 +95,7 @@ def render_meal_item(meal: Meal) -> rx.Component:
             ),
             # Bottom Row: Macro Badges (wrapping cleanly so it never overflows or pushes out action buttons)
             rx.flex(
-                rx.badge(f"{meal.weight}g", color_scheme="gray", variant="surface", size="1"),
+                rx.badge(f"{meal.amount}{meal.unit.unit}", color_scheme="gray", variant="surface", size="1"),
                 rx.badge(f"{meal.macros.calories} kcal", color_scheme="orange", variant="surface", size="1"),
                 rx.badge(f"{meal.macros.protein}g P", color_scheme="blue", variant="surface", size="1"),
                 rx.badge(f"{meal.macros.carbs}g C", color_scheme="amber", variant="surface", size="1"),
@@ -263,13 +264,24 @@ def meal_dialog() -> rx.Component:
                             spacing="1",
                         ),
                         rx.vstack(
-                            rx.text("Weight (g)", size="2", weight="bold"),
-                            rx.input(
-                                type="number",
-                                placeholder="e.g. 200",
-                                value=MealDialogState.weight,
-                                on_change=MealDialogState.set_weight,
-                                size="3",
+                            rx.text("Amount & Unit", size="2", weight="bold"),
+                            rx.hstack(
+                                rx.input(
+                                    type="number",
+                                    placeholder="Amount",
+                                    value=MealDialogState.amount,
+                                    on_change=MealDialogState.set_amount,
+                                    size="3",
+                                    flex="1",
+                                ),
+                                rx.select(
+                                    unit.ALL_UNITS,
+                                    value=MealDialogState.unit.unit,
+                                    on_change=MealDialogState.set_unit,
+                                    size="3",
+                                    style={"width": "110px"},
+                                ),
+                                spacing="2",
                                 width="100%",
                             ),
                             width="100%",
@@ -282,7 +294,7 @@ def meal_dialog() -> rx.Component:
                     rx.cond(
                         MealDialogState.is_editing_meal,
                         rx.checkbox(
-                            "Scale macros for new weight",
+                            "Scale macros for new amount / unit",
                             checked=MealDialogState.scale_macros,
                             on_change=MealDialogState.set_scale_macros,
                             size="2",

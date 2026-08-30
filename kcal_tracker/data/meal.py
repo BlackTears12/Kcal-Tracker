@@ -1,6 +1,7 @@
 from enum import Enum
 import datetime
 from dataclasses import dataclass, field
+from kcal_tracker.data.unit import Unit
 
 @dataclass
 class MacroProfile:
@@ -31,7 +32,8 @@ class Meal:
     category: MealCategory = MealCategory.Breakfast
     macros: MacroProfile = field(default_factory=MacroProfile)
     date: datetime.date = field(default_factory=datetime.date.today)
-    weight: float = 0.0
+    amount: float = 1.0
+    unit: Unit = field(default_factory=Unit)
 
     def __post_init__(self):
         if isinstance(self.macros, dict):
@@ -43,13 +45,20 @@ class Meal:
                 self.category = MealCategory.Breakfast
         if isinstance(self.date, str):
             self.date = datetime.date.fromisoformat(self.date)
+        if isinstance(self.unit, str):
+            self.unit = Unit(self.unit)
+        elif isinstance(self.unit, dict):
+            self.unit = Unit(**self.unit)
 
-    def scale_weight(self, new_weight: float):
-        old_weight = self.weight if self.weight else 1.0
+    def scale_size(self, new_amount: float, new_unit: Unit):
+        old_amount = self.amount if self.amount else 1.0
+        factor = new_amount * new_unit.conversion_factor(self.unit) / old_amount
         return Meal(
             id=self.id,
+            name=self.name,
             category=self.category,
             date=self.date,
-            weight=new_weight,
-            macros=self.macros.scale(new_weight/old_weight)
+            amount=new_amount,
+            unit=new_unit,
+            macros=self.macros.scale(factor)
         )
