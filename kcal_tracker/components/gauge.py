@@ -3,53 +3,94 @@ from kcal_tracker.states import NutritionState
 
 
 def calorie_gauge() -> rx.Component:
-    """Circular visual gauge for Calorie target vs eaten."""
+    """Single circular visual gauge for Calorie target vs eaten (Material Dark Style)."""
     return rx.card(
         rx.vstack(
             rx.hstack(
                 rx.hstack(
-                    rx.icon("flame", color="var(--orange-9)", size=20),
-                    rx.heading("Calories", size="4", weight="bold"),
+                    rx.box(
+                        rx.icon("flame", color="white", size=20),
+                        style={
+                            "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+                            "padding": "6px",
+                            "border_radius": "10px",
+                            "display": "flex",
+                            "align_items": "center",
+                            "justify_content": "center",
+                            "box_shadow": "0 2px 8px rgba(255, 107, 107, 0.35)",
+                        },
+                    ),
+                    rx.vstack(
+                        rx.heading("Daily Calories", size="4", weight="bold"),
+                        rx.text("Caloric Intake Target", size="1", color_scheme="gray"),
+                        spacing="0",
+                    ),
                     spacing="2",
                     align="center",
                 ),
                 rx.cond(
                     NutritionState.is_calorie_over,
-                    rx.badge("OVER LIMIT", color_scheme="red", variant="solid", radius="full"),
+                    rx.badge("OVER LIMIT", color_scheme="red", variant="solid", radius="full", size="2"),
                     rx.badge(
                         f"{NutritionState.remaining_calories} kcal left",
                         color_scheme="orange",
                         variant="soft",
                         radius="full",
+                        size="2",
                     ),
                 ),
                 justify="between",
                 align="center",
                 width="100%",
             ),
+            # Circular Gauge Ring
             rx.flex(
-                # Circular Progress Ring
                 rx.box(
                     rx.html(
                         f"""
-                        <svg viewBox="0 0 160 160" class="w-36 h-36 transform -rotate-90">
-                            <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" class="text-gray-200 dark:text-gray-800" />
-                            <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" 
-                                    stroke-dasharray="408.4" 
-                                    stroke-dashoffset="{408.4 - (NutritionState.calorie_percentage / 100.0) * 408.4}"
+                        <svg viewBox="0 0 180 180" class="w-44 h-44 transform -rotate-90">
+                            <!-- Background Track Ring -->
+                            <circle cx="90" cy="90" r="74" 
+                                    stroke="rgba(255, 255, 255, 0.08)" 
+                                    stroke-width="12" 
+                                    fill="transparent" />
+                            <!-- Active Progress Ring -->
+                            <circle cx="90" cy="90" r="74" 
+                                    stroke="url(#calorieGradient)" 
+                                    stroke-width="12" 
+                                    fill="transparent" 
+                                    stroke-dasharray="464.95" 
+                                    stroke-dashoffset="{464.95 - (NutritionState.calorie_percentage / 100.0) * 464.95}"
                                     stroke-linecap="round"
-                                    class="text-orange-500 transition-all duration-700 ease-out" />
+                                    class="transition-all duration-700 ease-out" />
+                            <defs>
+                                <linearGradient id="calorieGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#FF6B6B" />
+                                    <stop offset="100%" stop-color="#FF8E53" />
+                                </linearGradient>
+                            </defs>
                         </svg>
                         """
                     ),
                     rx.vstack(
-                        rx.heading(f"{NutritionState.total_calories}", size="7", weight="bold"),
-                        rx.text(f"/ {NutritionState.target_calories} kcal", size="2", color_scheme="gray"),
+                        rx.heading(
+                            f"{NutritionState.total_calories}",
+                            size="8",
+                            weight="bold",
+                            style={"line_height": "1"},
+                        ),
+                        rx.text(
+                            f"/ {NutritionState.target_calories} kcal",
+                            size="2",
+                            color_scheme="gray",
+                            weight="medium",
+                        ),
                         rx.badge(
                             f"{NutritionState.calorie_percentage}%",
                             color_scheme="orange",
                             variant="surface",
                             size="1",
+                            radius="full",
                         ),
                         spacing="1",
                         align="center",
@@ -61,444 +102,260 @@ def calorie_gauge() -> rx.Component:
                     position="relative",
                     display="flex",
                     align_items="center",
-                    justify_content="center",
+                    justify="center",
                 ),
                 justify="center",
                 align="center",
                 width="100%",
-                padding_y="3",
+                padding_y="4",
             ),
-            rx.hstack(
+            # Bottom Stat Breakdown Row
+            rx.grid(
                 rx.vstack(
-                    rx.text("Eaten", size="1", color_scheme="gray"),
-                    rx.text(f"{NutritionState.total_calories} kcal", size="2", weight="bold"),
+                    rx.text("Eaten", size="1", color_scheme="gray", weight="medium"),
+                    rx.text(f"{NutritionState.total_calories} kcal", size="3", weight="bold"),
                     align="center",
                     spacing="0",
                 ),
-                rx.divider(orientation="vertical", size="2"),
                 rx.vstack(
-                    rx.text("Target", size="1", color_scheme="gray"),
-                    rx.text(f"{NutritionState.target_calories} kcal", size="2", weight="bold"),
+                    rx.text("Target", size="1", color_scheme="gray", weight="medium"),
+                    rx.text(f"{NutritionState.target_calories} kcal", size="3", weight="bold"),
                     align="center",
                     spacing="0",
                 ),
-                rx.divider(orientation="vertical", size="2"),
                 rx.vstack(
-                    rx.text("Remaining", size="1", color_scheme="gray"),
+                    rx.text("Remaining", size="1", color_scheme="gray", weight="medium"),
                     rx.text(
                         f"{NutritionState.remaining_calories} kcal",
-                        size="2",
+                        size="3",
                         weight="bold",
                         color_scheme="orange",
                     ),
                     align="center",
                     spacing="0",
                 ),
-                justify="between",
+                columns="3",
                 width="100%",
-                padding_top="2",
+                padding_top="3",
                 border_top="1px solid var(--gray-4)",
             ),
             spacing="3",
             width="100%",
         ),
         size="3",
-        variant="surface",
         style={
             "background": "var(--gray-2)",
             "border": "1px solid var(--gray-4)",
-            "border_radius": "16px",
-            "box_shadow": "0 4px 20px rgba(0,0,0,0.03)",
+            "border_radius": "20px",
+            "box_shadow": "0 8px 30px rgba(0, 0, 0, 0.25)",
         },
         width="100%",
     )
 
 
-def protein_gauge() -> rx.Component:
-    """Circular visual gauge for Protein target vs eaten."""
+def macro_progress_bars() -> rx.Component:
+    """3 linear progress bars for Protein, Carbs, and Fat (Material Dark Style)."""
     return rx.card(
         rx.vstack(
             rx.hstack(
                 rx.hstack(
-                    rx.icon("dumbbell", color="var(--blue-9)", size=20),
-                    rx.heading("Protein", size="4", weight="bold"),
+                    rx.icon("chart-bar", color="var(--orange-9)", size=18),
+                    rx.heading("Macronutrients", size="3", weight="bold"),
                     spacing="2",
                     align="center",
                 ),
-                rx.badge(
-                    f"{NutritionState.remaining_protein}g left",
-                    color_scheme="blue",
-                    variant="soft",
-                    radius="full",
-                ),
+                rx.text("Daily Targets", size="1", color_scheme="gray"),
                 justify="between",
                 align="center",
                 width="100%",
             ),
-            rx.flex(
-                # Circular Progress Ring
-                rx.box(
-                    rx.html(
-                        f"""
-                        <svg viewBox="0 0 160 160" class="w-36 h-36 transform -rotate-90">
-                            <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" class="text-gray-200 dark:text-gray-800" />
-                            <circle cx="80" cy="80" r="65" stroke="currentColor" stroke-width="12" fill="transparent" 
-                                    stroke-dasharray="408.4" 
-                                    stroke-dashoffset="{408.4 - (NutritionState.protein_percentage / 100.0) * 408.4}"
-                                    stroke-linecap="round"
-                                    class="text-blue-500 transition-all duration-700 ease-out" />
-                        </svg>
-                        """
-                    ),
-                    rx.vstack(
-                        rx.heading(f"{NutritionState.total_protein}g", size="7", weight="bold"),
-                        rx.text(f"/ {NutritionState.target_protein}g target", size="2", color_scheme="gray"),
-                        rx.badge(
-                            f"{NutritionState.protein_percentage}%",
-                            color_scheme="blue",
-                            variant="surface",
-                            size="1",
+            # 1. Protein Progress Bar
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        rx.hstack(
+                            rx.box(
+                                rx.icon("dumbbell", size=14, color="#38BDF8"),
+                                style={
+                                    "background": "rgba(56, 189, 248, 0.15)",
+                                    "padding": "4px",
+                                    "border_radius": "6px",
+                                    "display": "flex",
+                                    "align_items": "center",
+                                    "justify_content": "center",
+                                },
+                            ),
+                            rx.text("Protein", size="2", weight="bold"),
+                            spacing="2",
+                            align="center",
                         ),
-                        spacing="1",
+                        rx.hstack(
+                            rx.text(
+                                f"{NutritionState.total_protein} / {NutritionState.target_protein}g",
+                                size="2",
+                                weight="bold",
+                            ),
+                            rx.badge(
+                                f"{NutritionState.protein_percentage}%",
+                                color_scheme="blue",
+                                variant="soft",
+                                size="1",
+                                radius="full",
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                        justify="between",
                         align="center",
-                        position="absolute",
-                        top="50%",
-                        left="50%",
-                        transform="translate(-50%, -50%)",
+                        width="100%",
                     ),
-                    position="relative",
-                    display="flex",
-                    align_items="center",
-                    justify_content="center",
-                ),
-                justify="center",
-                align="center",
-                width="100%",
-                padding_y="3",
-            ),
-            rx.hstack(
-                rx.vstack(
-                    rx.text("Eaten", size="1", color_scheme="gray"),
-                    rx.text(f"{NutritionState.total_protein}g", size="2", weight="bold"),
-                    align="center",
-                    spacing="0",
-                ),
-                rx.divider(orientation="vertical", size="2"),
-                rx.vstack(
-                    rx.text("Target", size="1", color_scheme="gray"),
-                    rx.text(f"{NutritionState.target_protein}g", size="2", weight="bold"),
-                    align="center",
-                    spacing="0",
-                ),
-                rx.divider(orientation="vertical", size="2"),
-                rx.vstack(
-                    rx.text("Remaining", size="1", color_scheme="gray"),
-                    rx.text(
-                        f"{NutritionState.remaining_protein}g",
-                        size="2",
-                        weight="bold",
+                    rx.progress(
+                        value=NutritionState.protein_percentage,
                         color_scheme="blue",
+                        size="2",
+                        radius="full",
                     ),
-                    align="center",
-                    spacing="0",
+                    spacing="2",
+                    width="100%",
                 ),
-                justify="between",
-                width="100%",
-                padding_top="2",
-                border_top="1px solid var(--gray-4)",
+                style={
+                    "background": "var(--gray-1)",
+                    "border": "1px solid var(--gray-4)",
+                    "border_radius": "12px",
+                    "padding": "12px 14px",
+                    "width": "100%",
+                },
+            ),
+            # 2. Carbs Progress Bar
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        rx.hstack(
+                            rx.box(
+                                rx.icon("wheat", size=14, color="#FBBF24"),
+                                style={
+                                    "background": "rgba(251, 191, 36, 0.15)",
+                                    "padding": "4px",
+                                    "border_radius": "6px",
+                                    "display": "flex",
+                                    "align_items": "center",
+                                    "justify_content": "center",
+                                },
+                            ),
+                            rx.text("Carbs", size="2", weight="bold"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.hstack(
+                            rx.text(
+                                f"{NutritionState.total_carbs} / {NutritionState.target_carbs}g",
+                                size="2",
+                                weight="bold",
+                            ),
+                            rx.badge(
+                                f"{NutritionState.carbs_percentage}%",
+                                color_scheme="amber",
+                                variant="soft",
+                                size="1",
+                                radius="full",
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                        justify="between",
+                        align="center",
+                        width="100%",
+                    ),
+                    rx.progress(
+                        value=NutritionState.carbs_percentage,
+                        color_scheme="amber",
+                        size="2",
+                        radius="full",
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+                style={
+                    "background": "var(--gray-1)",
+                    "border": "1px solid var(--gray-4)",
+                    "border_radius": "12px",
+                    "padding": "12px 14px",
+                    "width": "100%",
+                },
+            ),
+            # 3. Fat Progress Bar
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        rx.hstack(
+                            rx.box(
+                                rx.icon("droplet", size=14, color="#34D399"),
+                                style={
+                                    "background": "rgba(52, 211, 153, 0.15)",
+                                    "padding": "4px",
+                                    "border_radius": "6px",
+                                    "display": "flex",
+                                    "align_items": "center",
+                                    "justify_content": "center",
+                                },
+                            ),
+                            rx.text("Fat", size="2", weight="bold"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.hstack(
+                            rx.text(
+                                f"{NutritionState.total_fat} / {NutritionState.target_fat}g",
+                                size="2",
+                                weight="bold",
+                            ),
+                            rx.badge(
+                                f"{NutritionState.fat_percentage}%",
+                                color_scheme="green",
+                                variant="soft",
+                                size="1",
+                                radius="full",
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                        justify="between",
+                        align="center",
+                        width="100%",
+                    ),
+                    rx.progress(
+                        value=NutritionState.fat_percentage,
+                        color_scheme="green",
+                        size="2",
+                        radius="full",
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+                style={
+                    "background": "var(--gray-1)",
+                    "border": "1px solid var(--gray-4)",
+                    "border_radius": "12px",
+                    "padding": "12px 14px",
+                    "width": "100%",
+                },
             ),
             spacing="3",
             width="100%",
         ),
         size="3",
-        variant="surface",
         style={
             "background": "var(--gray-2)",
             "border": "1px solid var(--gray-4)",
-            "border_radius": "16px",
-            "box_shadow": "0 4px 20px rgba(0,0,0,0.03)",
+            "border_radius": "20px",
+            "box_shadow": "0 8px 30px rgba(0, 0, 0, 0.25)",
         },
         width="100%",
     )
 
 
-def macro_progress_cards() -> rx.Component:
-    """Carbs and Fat linear progress cards."""
-    return rx.grid(
-        rx.card(
-            rx.vstack(
-                rx.hstack(
-                    rx.hstack(
-                        rx.icon("wheat", color="var(--amber-9)", size=16),
-                        rx.text("Carbs", size="2", weight="bold"),
-                        spacing="2",
-                        align="center",
-                    ),
-                    rx.text(
-                        f"{NutritionState.total_carbs} / {NutritionState.target_carbs}g",
-                        size="2",
-                        weight="bold",
-                    ),
-                    justify="between",
-                    width="100%",
-                ),
-                rx.progress(
-                    value=NutritionState.carbs_percentage,
-                    color_scheme="amber",
-                    size="2",
-                    radius="full",
-                ),
-                spacing="2",
-                width="100%",
-            ),
-            size="2",
-            style={
-                "background": "var(--gray-2)",
-                "border": "1px solid var(--gray-4)",
-                "border_radius": "12px",
-            },
-        ),
-        rx.card(
-            rx.vstack(
-                rx.hstack(
-                    rx.hstack(
-                        rx.icon("droplet", color="var(--green-9)", size=16),
-                        rx.text("Fats", size="2", weight="bold"),
-                        spacing="2",
-                        align="center",
-                    ),
-                    rx.text(
-                        f"{NutritionState.total_fat} / {NutritionState.target_fat}g",
-                        size="2",
-                        weight="bold",
-                    ),
-                    justify="between",
-                    width="100%",
-                ),
-                rx.progress(
-                    value=NutritionState.fat_percentage,
-                    color_scheme="green",
-                    size="2",
-                    radius="full",
-                ),
-                spacing="2",
-                width="100%",
-            ),
-            size="2",
-            style={
-                "background": "var(--gray-2)",
-                "border": "1px solid var(--gray-4)",
-                "border_radius": "12px",
-            },
-        ),
-        columns=rx.breakpoints(initial="1", sm="2"),
-        spacing="3",
-        width="100%",
-    )
-
-
-def mobile_calorie_gauge() -> rx.Component:
-    """Smaller Calorie Mini Gauge Card for mobile screens."""
-    return rx.card(
-        rx.vstack(
-            rx.hstack(
-                rx.hstack(
-                    rx.icon("flame", color="var(--orange-9)", size=14),
-                    rx.text("Calories", size="1", weight="bold"),
-                    spacing="1",
-                    align="center",
-                ),
-                rx.cond(
-                    NutritionState.is_calorie_over,
-                    rx.badge("OVER", color_scheme="red", size="1"),
-                    rx.badge(f"{NutritionState.remaining_calories} left", color_scheme="orange", variant="soft", size="1"),
-                ),
-                justify="between",
-                align="center",
-                width="100%",
-            ),
-            rx.flex(
-                rx.box(
-                    rx.html(
-                        f"""
-                        <svg viewBox="0 0 90 90" width="90" height="90" style="transform: rotate(-90deg);">
-                            <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" class="text-gray-200 dark:text-gray-800" />
-                            <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" 
-                                    stroke-dasharray="219.9" 
-                                    stroke-dashoffset="{219.9 - (NutritionState.calorie_percentage / 100.0) * 219.9}"
-                                    stroke-linecap="round"
-                                    class="text-orange-500 transition-all duration-700 ease-out" />
-                        </svg>
-                        """
-                    ),
-                    rx.vstack(
-                        rx.heading(f"{NutritionState.total_calories}", size="3", weight="bold"),
-                        rx.text(f"/ {NutritionState.target_calories}", size="1", color_scheme="gray"),
-                        spacing="0",
-                        align="center",
-                        position="absolute",
-                        top="50%",
-                        left="50%",
-                        transform="translate(-50%, -50%)",
-                    ),
-                    position="relative",
-                    display="flex",
-                    align_items="center",
-                    justify="center",
-                ),
-                justify="center",
-                align="center",
-                width="100%",
-                padding_y="1",
-            ),
-            rx.hstack(
-                rx.text(f"Eaten: {NutritionState.total_calories}", size="1", color_scheme="gray"),
-                rx.text(f"{NutritionState.calorie_percentage}%", size="1", weight="bold", color_scheme="orange"),
-                justify="between",
-                width="100%",
-            ),
-            spacing="1",
-            align="center",
-            width="100%",
-        ),
-        size="1",
-        style={
-            "background": "var(--gray-1)",
-            "border": "1px solid var(--gray-4)",
-            "border_radius": "12px",
-            "padding": "8px 10px",
-        },
-        width="100%",
-    )
-
-
-def mobile_protein_gauge() -> rx.Component:
-    """Smaller Protein Mini Gauge Card for mobile screens."""
-    return rx.card(
-        rx.vstack(
-            rx.hstack(
-                rx.hstack(
-                    rx.icon("dumbbell", color="var(--blue-9)", size=14),
-                    rx.text("Protein", size="1", weight="bold"),
-                    spacing="1",
-                    align="center",
-                ),
-                rx.badge(f"{NutritionState.remaining_protein}g left", color_scheme="blue", variant="soft", size="1"),
-                justify="between",
-                align="center",
-                width="100%",
-            ),
-            rx.flex(
-                rx.box(
-                    rx.html(
-                        f"""
-                        <svg viewBox="0 0 90 90" width="90" height="90" style="transform: rotate(-90deg);">
-                            <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" class="text-gray-200 dark:text-gray-800" />
-                            <circle cx="45" cy="45" r="35" stroke="currentColor" stroke-width="8" fill="transparent" 
-                                    stroke-dasharray="219.9" 
-                                    stroke-dashoffset="{219.9 - (NutritionState.protein_percentage / 100.0) * 219.9}"
-                                    stroke-linecap="round"
-                                    class="text-blue-500 transition-all duration-700 ease-out" />
-                        </svg>
-                        """
-                    ),
-                    rx.vstack(
-                        rx.heading(f"{NutritionState.total_protein}g", size="3", weight="bold"),
-                        rx.text(f"/ {NutritionState.target_protein}g", size="1", color_scheme="gray"),
-                        spacing="0",
-                        align="center",
-                        position="absolute",
-                        top="50%",
-                        left="50%",
-                        transform="translate(-50%, -50%)",
-                    ),
-                    position="relative",
-                    display="flex",
-                    align_items="center",
-                    justify="center",
-                ),
-                justify="center",
-                align="center",
-                width="100%",
-                padding_y="1",
-            ),
-            rx.hstack(
-                rx.text(f"Eaten: {NutritionState.total_protein}g", size="1", color_scheme="gray"),
-                rx.text(f"{NutritionState.protein_percentage}%", size="1", weight="bold", color_scheme="blue"),
-                justify="between",
-                width="100%",
-            ),
-            spacing="1",
-            align="center",
-            width="100%",
-        ),
-        size="1",
-        style={
-            "background": "var(--gray-1)",
-            "border": "1px solid var(--gray-4)",
-            "border_radius": "12px",
-            "padding": "8px 10px",
-        },
-        width="100%",
-    )
-
-
-def mobile_macro_progress_cards() -> rx.Component:
-    """Compact Carbs & Fat linear progress cards for mobile screens."""
-    return rx.grid(
-        rx.card(
-            rx.hstack(
-                rx.icon("wheat", color="var(--amber-9)", size=13),
-                rx.vstack(
-                    rx.hstack(
-                        rx.text("Carbs", size="1", weight="bold"),
-                        rx.text(f"{NutritionState.total_carbs}/{NutritionState.target_carbs}g", size="1", color_scheme="gray"),
-                        justify="between",
-                        width="100%",
-                    ),
-                    rx.progress(value=NutritionState.carbs_percentage, color_scheme="amber", size="1", radius="full"),
-                    spacing="1",
-                    width="100%",
-                ),
-                spacing="2",
-                align="center",
-                width="100%",
-            ),
-            size="1",
-            style={
-                "background": "var(--gray-1)",
-                "border": "1px solid var(--gray-4)",
-                "border_radius": "10px",
-                "padding": "6px 8px",
-            },
-        ),
-        rx.card(
-            rx.hstack(
-                rx.icon("droplet", color="var(--green-9)", size=13),
-                rx.vstack(
-                    rx.hstack(
-                        rx.text("Fat", size="1", weight="bold"),
-                        rx.text(f"{NutritionState.total_fat}/{NutritionState.target_fat}g", size="1", color_scheme="gray"),
-                        justify="between",
-                        width="100%",
-                    ),
-                    rx.progress(value=NutritionState.fat_percentage, color_scheme="green", size="1", radius="full"),
-                    spacing="1",
-                    width="100%",
-                ),
-                spacing="2",
-                align="center",
-                width="100%",
-            ),
-            size="1",
-            style={
-                "background": "var(--gray-1)",
-                "border": "1px solid var(--gray-4)",
-                "border_radius": "10px",
-                "padding": "6px 8px",
-            },
-        ),
-        columns="2",
-        spacing="2",
-        width="100%",
-    )
+# Alias helper names for compatibility
+macro_progress_cards = macro_progress_bars
+mobile_calorie_gauge = calorie_gauge
+mobile_protein_gauge = macro_progress_bars
+mobile_macro_progress_cards = macro_progress_bars

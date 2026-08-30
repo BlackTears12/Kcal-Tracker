@@ -56,6 +56,16 @@ class NutritionState(rx.State):
         return max(0, round(rem))
 
     @rx.var
+    def remaining_carbs(self) -> int:
+        rem = self.profile_data.targets.carbs - self.total_carbs
+        return max(0, round(rem))
+
+    @rx.var
+    def remaining_fat(self) -> int:
+        rem = self.profile_data.targets.fat - self.total_fat
+        return max(0, round(rem))
+
+    @rx.var
     def calorie_percentage(self) -> int:
         if self.profile_data.targets.calories <= 0:
             return 0

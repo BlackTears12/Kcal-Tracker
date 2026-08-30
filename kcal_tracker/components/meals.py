@@ -98,12 +98,22 @@ def render_meal_item(meal: Meal) -> rx.Component:
 
 
 def meals_section() -> rx.Component:
-    """Today's logged meals list section."""
+    """Today's logged meals list section (Material Dark Style)."""
     return rx.card(
         rx.vstack(
             rx.hstack(
                 rx.hstack(
-                    rx.icon("list-checks", color="var(--orange-9)", size=20),
+                    rx.box(
+                        rx.icon("utensils", size=18, color="white"),
+                        style={
+                            "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+                            "padding": "6px",
+                            "border_radius": "10px",
+                            "display": "flex",
+                            "align_items": "center",
+                            "justify_content": "center",
+                        },
+                    ),
                     rx.heading(
                         rx.cond(
                             NutritionState.is_today,
@@ -115,9 +125,10 @@ def meals_section() -> rx.Component:
                     ),
                     rx.badge(
                         f"{NutritionState.meal_count} meals",
-                        color_scheme="gray",
+                        color_scheme="orange",
                         variant="soft",
                         radius="full",
+                        size="1",
                     ),
                     spacing="2",
                     align="center",
@@ -128,7 +139,7 @@ def meals_section() -> rx.Component:
                     size="2",
                     color_scheme="orange",
                     on_click=MealDialogState.open_add_meal,
-                    style={"cursor": "pointer", "border_radius": "8px"},
+                    style={"cursor": "pointer", "border_radius": "10px"},
                 ),
                 justify="between",
                 align="center",
@@ -138,18 +149,18 @@ def meals_section() -> rx.Component:
             rx.cond(
                 NutritionState.meal_count == 0,
                 rx.vstack(
-                    rx.icon("utensils-crossed", size=36, color="var(--gray-8)"),
+                    rx.icon("utensils-crossed", size=40, color="var(--gray-8)"),
                     rx.text(
                         rx.cond(
                             NutritionState.is_today,
                             "No meals logged yet today.",
                             "No meals logged for this date.",
                         ),
-                        size="2",
+                        size="3",
                         weight="bold",
                     ),
                     rx.text(
-                        "Click '+ Log Meal' or chat with the AI Assistant to log your food!",
+                        "Click '+ Log Meal' or chat with the AI Assistant in the bottom-right to log food!",
                         size="2",
                         color_scheme="gray",
                     ),
@@ -171,14 +182,15 @@ def meals_section() -> rx.Component:
         style={
             "background": "var(--gray-2)",
             "border": "1px solid var(--gray-4)",
-            "border_radius": "16px",
+            "border_radius": "20px",
+            "box_shadow": "0 8px 30px rgba(0, 0, 0, 0.25)",
         },
         width="100%",
     )
 
 
 def meal_dialog() -> rx.Component:
-    """Dialog modal for creating or editing a meal."""
+    """Dialog modal for creating or editing a meal (Material Dark Style)."""
     return rx.dialog.root(
         rx.dialog.content(
             rx.dialog.title(MealDialogState.modal_title),
@@ -242,7 +254,12 @@ def meal_dialog() -> rx.Component:
                     ),
                     rx.grid(
                         rx.vstack(
-                            rx.text("Calories (kcal)", size="2", weight="bold"),
+                            rx.hstack(
+                                rx.icon("flame", size=14, color="var(--orange-9)"),
+                                rx.text("Calories (kcal)", size="2", weight="bold"),
+                                spacing="1",
+                                align="center",
+                            ),
                             rx.input(
                                 type="number",
                                 value=MealDialogState.calories,
@@ -252,7 +269,12 @@ def meal_dialog() -> rx.Component:
                             spacing="1",
                         ),
                         rx.vstack(
-                            rx.text("Protein (g)", size="2", weight="bold"),
+                            rx.hstack(
+                                rx.icon("dumbbell", size=14, color="#38BDF8"),
+                                rx.text("Protein (g)", size="2", weight="bold"),
+                                spacing="1",
+                                align="center",
+                            ),
                             rx.input(
                                 type="number",
                                 value=MealDialogState.protein,
@@ -262,7 +284,12 @@ def meal_dialog() -> rx.Component:
                             spacing="1",
                         ),
                         rx.vstack(
-                            rx.text("Carbs (g)", size="2", weight="bold"),
+                            rx.hstack(
+                                rx.icon("wheat", size=14, color="#FBBF24"),
+                                rx.text("Carbs (g)", size="2", weight="bold"),
+                                spacing="1",
+                                align="center",
+                            ),
                             rx.input(
                                 type="number",
                                 value=MealDialogState.carbs,
@@ -272,7 +299,12 @@ def meal_dialog() -> rx.Component:
                             spacing="1",
                         ),
                         rx.vstack(
-                            rx.text("Fat (g)", size="2", weight="bold"),
+                            rx.hstack(
+                                rx.icon("droplet", size=14, color="#34D399"),
+                                rx.text("Fat (g)", size="2", weight="bold"),
+                                spacing="1",
+                                align="center",
+                            ),
                             rx.input(
                                 type="number",
                                 value=MealDialogState.fat,
@@ -309,7 +341,12 @@ def meal_dialog() -> rx.Component:
                 margin_top="4",
                 justify="end",
             ),
-            style={"max_width": "500px"},
+            style={
+                "max_width": "500px",
+                "background": "var(--gray-2)",
+                "border": "1px solid var(--gray-4)",
+                "border_radius": "20px",
+            },
         ),
         open=MealDialogState.show_modal,
         on_open_change=MealDialogState.set_show_modal,

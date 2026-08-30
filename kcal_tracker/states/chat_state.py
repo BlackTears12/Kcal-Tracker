@@ -11,20 +11,26 @@ from kcal_tracker.states.nutrition_state import Meal, NutritionState
 class ChatMessage:
     content: str = ""
     time: datetime = field(default_factory=datetime.now)
+    time_str: str = ""
     is_ai: bool = False
     action: str = ""
 
+    def __post_init__(self):
+        if not self.time_str and self.time:
+            self.time_str = self.time.strftime("%I:%M %p").lstrip("0")
+
     def formatted_time(self) -> str:
-        return self.time.strftime("%I:%M %p")
+        return self.time_str or self.time.strftime("%I:%M %p").lstrip("0")
 
 
 def get_default_messages() -> list[ChatMessage]:
     return [
         ChatMessage(
-            content="👋 Welcome to your AI Nutrition Assistant! I can help you log meals, calculate macros, save recipes, and answer nutritional questions.\n\nTry saying: *'Log 2 eggs and toast for breakfast'* or *'Create a recipe for Protein Smoothie'*.",
+            content="Hey there! 👋 I'm your Kcal AI Coach. Tell me what you ate (e.g. *'Log 2 eggs and toast for breakfast'*), ask for recipe ideas, or check your remaining macros!",
             time=datetime.now(),
+            time_str=datetime.now().strftime("%I:%M %p").lstrip("0"),
             is_ai=True,
-            action="AI Ready",
+            action="",
         )
     ]
 
@@ -53,17 +59,21 @@ class ChatState(rx.State):
     def add_user_message(self, content: str):
         if not content.strip():
             return
+        now = datetime.now()
         user_msg = ChatMessage(
             content=content.strip(),
-            time=datetime.now(),
+            time=now,
+            time_str=now.strftime("%I:%M %p").lstrip("0"),
             is_ai=False,
         )
         self.history = self.history + [user_msg]
 
     def add_ai_message(self, content: str, action: str = ""):
+        now = datetime.now()
         ai_msg = ChatMessage(
             content=content,
-            time=datetime.now(),
+            time=now,
+            time_str=now.strftime("%I:%M %p").lstrip("0"),
             is_ai=True,
             action=action,
         )

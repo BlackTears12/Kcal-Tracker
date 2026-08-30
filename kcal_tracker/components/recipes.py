@@ -275,18 +275,29 @@ def render_editable_ingredient(ing: Ingredient, index: int) -> rx.Component:
 
 
 def recipes_section() -> rx.Component:
-    """Saved recipes collection section."""
+    """Saved recipes collection section (Material Dark Style)."""
     return rx.card(
         rx.vstack(
             rx.hstack(
                 rx.hstack(
-                    rx.icon("chef-hat", color="var(--purple-9)", size=20),
+                    rx.box(
+                        rx.icon("chef-hat", color="white", size=18),
+                        style={
+                            "background": "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
+                            "padding": "6px",
+                            "border_radius": "10px",
+                            "display": "flex",
+                            "align_items": "center",
+                            "justify_content": "center",
+                        },
+                    ),
                     rx.heading("Saved Recipes", size="4", weight="bold"),
                     rx.badge(
                         f"{RecipesState.recipe_count} recipes",
                         color_scheme="purple",
                         variant="soft",
                         radius="full",
+                        size="1",
                     ),
                     spacing="2",
                     align="center",
@@ -297,7 +308,7 @@ def recipes_section() -> rx.Component:
                     size="2",
                     color_scheme="purple",
                     on_click=RecipeDialogState.open_add_recipe,
-                    style={"cursor": "pointer", "border_radius": "8px"},
+                    style={"cursor": "pointer", "border_radius": "10px"},
                 ),
                 justify="between",
                 align="center",
@@ -307,10 +318,10 @@ def recipes_section() -> rx.Component:
             rx.cond(
                 RecipesState.recipe_count == 0,
                 rx.vstack(
-                    rx.icon("book-x", size=36, color="var(--gray-8)"),
-                    rx.text("No saved recipes yet.", size="2", weight="bold"),
+                    rx.icon("book-x", size=40, color="var(--gray-8)"),
+                    rx.text("No saved recipes yet.", size="3", weight="bold"),
                     rx.text(
-                        "Create a recipe manually or ask the AI Assistant e.g. 'Create a recipe for Protein Smoothie'!",
+                        "Create a recipe manually or ask the AI Assistant in the bottom-right e.g. 'Create a recipe for Protein Smoothie'!",
                         size="2",
                         color_scheme="gray",
                     ),
@@ -332,14 +343,15 @@ def recipes_section() -> rx.Component:
         style={
             "background": "var(--gray-2)",
             "border": "1px solid var(--gray-4)",
-            "border_radius": "16px",
+            "border_radius": "20px",
+            "box_shadow": "0 8px 30px rgba(0, 0, 0, 0.25)",
         },
         width="100%",
     )
 
 
 def recipe_dialog() -> rx.Component:
-    """Dialog modal for creating or editing a recipe."""
+    """Dialog modal for creating or editing a recipe (Material Dark Style)."""
     return rx.dialog.root(
         rx.dialog.content(
             rx.dialog.title(RecipeDialogState.modal_title),
@@ -397,7 +409,7 @@ def recipe_dialog() -> rx.Component:
                                 variant="soft",
                                 color_scheme="purple",
                                 on_click=RecipeDialogState.add_ingredient,
-                                style={"cursor": "pointer"},
+                                style={"cursor": "pointer", "border_radius": "8px"},
                             ),
                             justify="between",
                             align="center",
@@ -436,7 +448,12 @@ def recipe_dialog() -> rx.Component:
                 margin_top="4",
                 justify="end",
             ),
-            style={"max_width": "580px"},
+            style={
+                "max_width": "580px",
+                "background": "var(--gray-2)",
+                "border": "1px solid var(--gray-4)",
+                "border_radius": "20px",
+            },
         ),
         open=RecipeDialogState.show_modal,
         on_open_change=RecipeDialogState.set_show_modal,

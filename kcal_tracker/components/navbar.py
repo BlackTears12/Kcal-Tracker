@@ -3,7 +3,7 @@ from kcal_tracker.states import TargetDialogState, NutritionState
 
 
 def navbar() -> rx.Component:
-    """Navigation bar header."""
+    """Material Dark Navigation bar header."""
     return rx.box(
         rx.flex(
             # Left: Brand logo & Title
@@ -13,8 +13,8 @@ def navbar() -> rx.Component:
                     style={
                         "background": "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
                         "padding": "8px",
-                        "border_radius": "10px",
-                        "box_shadow": "0 2px 10px rgba(255, 107, 107, 0.3)",
+                        "border_radius": "12px",
+                        "box_shadow": "0 2px 10px rgba(255, 107, 107, 0.35)",
                         "display": "flex",
                         "align_items": "center",
                         "justify_content": "center",
@@ -23,7 +23,7 @@ def navbar() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.heading("Kcal", size="5", weight="bold"),
-                        rx.badge("AI Tracker", color_scheme="orange", variant="soft", size="1"),
+                        rx.badge("AI Tracker", color_scheme="orange", variant="soft", size="1", radius="full"),
                         spacing="2",
                         align="center",
                     ),
@@ -41,24 +41,23 @@ def navbar() -> rx.Component:
             rx.hstack(
                 rx.button(
                     rx.icon("target", size=16),
-                    "Set Goals",
-                    variant="outline",
+                    rx.text("Set Goals", display=rx.breakpoints(initial="none", sm="inline")),
+                    variant="surface",
                     color_scheme="gray",
                     size="2",
                     on_click=TargetDialogState.open_modal,
-                    style={"cursor": "pointer", "border_radius": "8px"},
+                    style={"cursor": "pointer", "border_radius": "10px"},
                 ),
                 rx.button(
                     rx.icon("rotate-ccw", size=16),
-                    "Reset Day",
+                    rx.text("Reset", display=rx.breakpoints(initial="none", sm="inline")),
                     variant="soft",
                     color_scheme="red",
                     size="2",
                     on_click=NutritionState.clear_all_meals,
-                    style={"cursor": "pointer", "border_radius": "8px"},
+                    style={"cursor": "pointer", "border_radius": "10px"},
                 ),
-                rx.color_mode.button(size="2"),
-                spacing="3",
+                spacing="2",
                 align="center",
             ),
             justify="between",
@@ -71,11 +70,12 @@ def navbar() -> rx.Component:
         ),
         style={
             "border_bottom": "1px solid var(--gray-4)",
-            "background": "var(--gray-1)",
-            "backdrop_filter": "blur(8px)",
+            "background": "rgba(18, 18, 20, 0.8)",
+            "backdrop_filter": "blur(12px)",
             "position": "sticky",
             "top": "0",
             "z_index": "50",
             "width": "100%",
         },
     )
+
