@@ -336,6 +336,8 @@ def recipes_section() -> rx.Component:
                     ),
                     spacing="2",
                     align="center",
+                    flex="1",
+                    min_width="0",
                     wrap="wrap",
                 ),
                 rx.button(
@@ -344,7 +346,12 @@ def recipes_section() -> rx.Component:
                     size="2",
                     color_scheme="purple",
                     on_click=RecipeDialogState.open_add_recipe,
-                    style={"cursor": "pointer", "border_radius": "10px", "flex_shrink": "0"},
+                    style={
+                        "cursor": "pointer",
+                        "border_radius": "10px",
+                        "flex_shrink": "0",
+                        "margin_left": "auto",
+                    },
                 ),
                 justify="between",
                 align="center",

@@ -158,6 +158,8 @@ def meals_section() -> rx.Component:
                     ),
                     spacing="2",
                     align="center",
+                    flex="1",
+                    min_width="0",
                     wrap="wrap",
                 ),
                 rx.button(
@@ -166,7 +168,12 @@ def meals_section() -> rx.Component:
                     size="2",
                     color_scheme="orange",
                     on_click=MealDialogState.open_add_meal,
-                    style={"cursor": "pointer", "border_radius": "10px", "flex_shrink": "0"},
+                    style={
+                        "cursor": "pointer",
+                        "border_radius": "10px",
+                        "flex_shrink": "0",
+                        "margin_left": "auto",
+                    },
                 ),
                 justify="between",
                 align="center",
