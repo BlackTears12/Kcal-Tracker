@@ -6,11 +6,11 @@ config = rx.Config(
     plugins=[
         rx.plugins.RadixThemesPlugin(
             theme=rx.theme(
-                appearance="light",
+                appearance="dark",
                 has_background=True,
                 accent_color="orange",
                 gray_color="slate",
-                radius="medium",
+                radius="large",
             )
         ),
         rx.plugins.SitemapPlugin(),
