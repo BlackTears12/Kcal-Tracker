@@ -1,6 +1,6 @@
 from google import genai
 from pydantic import BaseModel, Field
-from typing import cast
+from typing import cast, Optional
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
 import kcal_tracker.state_accessor as state_accessor
@@ -9,6 +9,7 @@ import kcal_tracker.state_accessor as state_accessor
 class MealSchema(BaseModel):
     id: int = Field(default=0, description="The ID of the already logged meal, not used when logging a new meal")
     name: str = Field(description="Name of the meal")
+    category: str = Field(default="Breakfast", description="Meal category: Breakfast, Lunch, Dinner, or Snack")
     calories: float = Field(description="Amount kcal of calories contained in the meal")
     protein_g: float = Field(description="grams of protein contained in the meal")
     carbs_g: float = Field(description="grams of carbs contained in the meal")
@@ -21,6 +22,7 @@ class MealSchema(BaseModel):
         return cls(
             id=meal.id,
             name=meal.name,
+            category=meal.category.value,
             calories=meal.macros.calories,
             protein_g=meal.macros.protein,
             carbs_g=meal.macros.carbs,
@@ -30,10 +32,15 @@ class MealSchema(BaseModel):
         )
 
     def to_app_meal(self) -> Meal:
+        category = MealCategory.Breakfast
+        try:
+            category = MealCategory(self.category)
+        except:
+            pass
         return Meal(
             id=self.id,
             name=self.name,
-            category=MealCategory.Breakfast,
+            category=category,
             macros=MacroProfile(
                 self.calories, self.protein_g, self.carbs_g, self.fat_g
             ),
@@ -175,6 +182,58 @@ async def log_recipe_as_meal(recipe_name: str):
         await recipes_state.log_recipe_as_meal(recipe_name)
 
 
+class TargetMacrosSchema(BaseModel):
+    calories: float = Field(description="Daily target calories in kcal")
+    protein_g: float = Field(description="Daily target protein in grams")
+    carbs_g: float = Field(description="Daily target carbohydrates in grams")
+    fat_g: float = Field(description="Daily target fat in grams")
+
+    @classmethod
+    def from_macro_profile(cls, profile: MacroProfile) -> "TargetMacrosSchema":
+        return cls(
+            calories=profile.calories,
+            protein_g=profile.protein,
+            carbs_g=profile.carbs,
+            fat_g=profile.fat,
+        )
+
+
+async def get_target_macros() -> TargetMacrosSchema:
+    """Returns the user's daily target nutritional macros (calories in kcal, protein in grams, carbs in grams, fat in grams)."""
+    print("get_target_macros!!!")
+    nutrition_state = await state_accessor.get_nutrition_state()
+    return TargetMacrosSchema.from_macro_profile(nutrition_state.targets)
+
+
+async def set_target_macros(
+    calories: Optional[float] = None,
+    protein_g: Optional[float] = None,
+    carbs_g: Optional[float] = None,
+    fat_g: Optional[float] = None,
+) -> str:
+    """Set or update the user's daily target nutritional macros. Any omitted/unspecified macro parameters will keep their current target values."""
+    print("set_target_macros!!!")
+    nutrition_state = await state_accessor.get_nutrition_state()
+    current_targets = nutrition_state.targets
+    new_calories = calories if calories is not None else current_targets.calories
+    new_protein = protein_g if protein_g is not None else current_targets.protein
+    new_carbs = carbs_g if carbs_g is not None else current_targets.carbs
+    new_fat = fat_g if fat_g is not None else current_targets.fat
+    nutrition_state.set_targets(
+        calories=new_calories,
+        protein=new_protein,
+        carbs=new_carbs,
+        fat=new_fat,
+    )
+    return (
+        f"Daily target macros successfully updated: "
+        f"Calories: {nutrition_state.target_calories} kcal, "
+        f"Protein: {nutrition_state.target_protein}g, "
+        f"Carbs: {nutrition_state.target_carbs}g, "
+        f"Fat: {nutrition_state.target_fat}g"
+    )
+
+
 chat_instance = None
 client = genai.Client()
 
@@ -184,6 +243,8 @@ SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
 - When the user asks about their saved recipes or meals, call get_recipes or get_meals.
 - When the user asks to update or remove meals or recipes, use update_meal, remove_meal, update_recipe, or remove_recipe (recipes are identified by name).
 - When the user asks to log a saved recipe as a meal, call log_recipe_as_meal with the recipe name.
+- When the user asks about their daily target macros or calorie/macro goals, call get_target_macros.
+- When the user asks to set, update, or adjust their daily target macros (calories, protein, carbs, fat), call set_target_macros.
 - Be concise, accurate with macros, and helpful."""
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"
@@ -204,6 +265,8 @@ def init_agent():
                 update_recipe,
                 remove_recipe,
                 log_recipe_as_meal,
+                get_target_macros,
+                set_target_macros,
             ],
             "system_instruction": SYS_PROMPT,
         },
@@ -216,4 +279,5 @@ async def send_prompt(prompt: str) -> str:
         init_agent()
     response = await chat_instance.send_message(prompt) # type: ignore
     return response.text or ""
+
     

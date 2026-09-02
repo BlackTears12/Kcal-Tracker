@@ -4,3 +4,4 @@ google-auth
 google-genai
 reflex_google_auth
 filelock
+unidecode
