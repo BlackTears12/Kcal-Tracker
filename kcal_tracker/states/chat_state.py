@@ -38,6 +38,7 @@ def get_default_messages() -> list[ChatMessage]:
 class ChatState(rx.State):
     history: list[ChatMessage] = get_default_messages()
     chat_input: str = ""
+    uploaded_image: str = ""
     is_thinking: bool = False
 
     # Computed vars
@@ -79,6 +80,18 @@ class ChatState(rx.State):
         )
         self.history = self.history + [ai_msg]
 
+    @rx.event
+    async def handle_upload(self, file: rx.UploadFile):
+        upload_data = await file.read()
+        outfile = rx.get_upload_dir() / str(file.filename)
+
+        # Save the file to the app's upload directory
+        with outfile.open("wb") as f:
+            f.write(upload_data)
+
+        # Store the filename to preview it in the UI
+        self.uploaded_image = str(outfile.absolute())
+
     async def handle_submit(self):
         if not self.chat_input.strip():
             return
@@ -88,7 +101,8 @@ class ChatState(rx.State):
         self.is_thinking = True
         yield
         try:
-            result = await asyncio.wait_for(agent.send_prompt(user_text), timeout=60.0)
+            result = await asyncio.wait_for(agent.send_prompt(user_text, self.uploaded_image), timeout=60.0)
+            self.uploaded_image = ""
             async with self:
                 response = result
                 if response:

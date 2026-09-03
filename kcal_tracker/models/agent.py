@@ -1,6 +1,7 @@
 from google import genai
 from pydantic import BaseModel, Field
 from typing import cast, Optional
+from PIL import Image
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
 import kcal_tracker.state_accessor as state_accessor
@@ -273,11 +274,13 @@ def init_agent():
     )
 
 
-async def send_prompt(prompt: str) -> str:
+async def send_prompt(prompt: str, image_path="") -> str:
     global chat_instance
     if chat_instance is None:
         init_agent()
-    response = await chat_instance.send_message(prompt) # type: ignore
+    content = prompt
+    if image_path:
+        img = Image.open(image_path)
+        content = [img, prompt]
+    response = await chat_instance.send_message(content) # type: ignore
     return response.text or ""
-
-    
