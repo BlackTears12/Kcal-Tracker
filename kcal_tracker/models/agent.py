@@ -207,24 +207,16 @@ async def get_target_macros() -> TargetMacrosSchema:
 
 
 async def set_target_macros(
-    calories: Optional[float] = None,
-    protein_g: Optional[float] = None,
-    carbs_g: Optional[float] = None,
-    fat_g: Optional[float] = None,
+    target: TargetMacrosSchema
 ) -> str:
     """Set or update the user's daily target nutritional macros. Any omitted/unspecified macro parameters will keep their current target values."""
     print("set_target_macros!!!")
     nutrition_state = await state_accessor.get_nutrition_state()
-    current_targets = nutrition_state.targets
-    new_calories = calories if calories is not None else current_targets.calories
-    new_protein = protein_g if protein_g is not None else current_targets.protein
-    new_carbs = carbs_g if carbs_g is not None else current_targets.carbs
-    new_fat = fat_g if fat_g is not None else current_targets.fat
     nutrition_state.set_targets(
-        calories=new_calories,
-        protein=new_protein,
-        carbs=new_carbs,
-        fat=new_fat,
+        calories=target.calories,
+        protein=target.protein_g,
+        carbs=target.carbs_g,
+        fat=target.fat_g,
     )
     return (
         f"Daily target macros successfully updated: "
