@@ -81,12 +81,33 @@ def render_chat_message(msg: ChatMessage) -> rx.Component:
             rx.flex(
                 rx.vstack(
                     rx.box(
-                        rx.text(
-                            msg.content,
-                            size="2",
-                            color="white",
-                            weight="medium",
-                            style={"white_space": "pre-wrap", "word_break": "break-word", "font_size": "13px"},
+                        rx.vstack(
+                            rx.cond(
+                                msg.image_filename != "",
+                                rx.image(
+                                    src=rx.get_upload_url(msg.image_filename),
+                                    style={
+                                        "max_width": "200px",
+                                        "max_height": "160px",
+                                        "border_radius": "8px",
+                                        "object_fit": "cover",
+                                        "margin_bottom": "4px",
+                                        "border": "1px solid rgba(255, 255, 255, 0.2)",
+                                    },
+                                ),
+                            ),
+                            rx.cond(
+                                msg.content != "",
+                                rx.text(
+                                    msg.content,
+                                    size="2",
+                                    color="white",
+                                    weight="medium",
+                                    style={"white_space": "pre-wrap", "word_break": "break-word", "font_size": "13px"},
+                                ),
+                            ),
+                            spacing="1",
+                            align="end",
                         ),
                         rx.hstack(
                             rx.text(
@@ -293,15 +314,123 @@ def chat_messages_stream() -> rx.Component:
 
 
 def chat_composer() -> rx.Component:
-    """Compact chat input composer pinned at bottom."""
+    """Compact chat input composer pinned at bottom with picture upload support."""
     return rx.box(
+        # Attached image staging banner
+        rx.cond(
+            ChatState.has_attached_image,
+            rx.hstack(
+                rx.image(
+                    src=rx.get_upload_url(ChatState.uploaded_image_filename),
+                    style={
+                        "width": "34px",
+                        "height": "34px",
+                        "min_width": "34px",
+                        "border_radius": "6px",
+                        "object_fit": "cover",
+                        "border": "1px solid var(--gray-6)",
+                    },
+                ),
+                rx.vstack(
+                    rx.text(
+                        "Picture attached",
+                        size="1",
+                        weight="bold",
+                        color="var(--gray-12)",
+                        style={"font_size": "11px"},
+                    ),
+                    rx.text(
+                        "Ready to send • Tap arrow or enter",
+                        size="1",
+                        color="var(--gray-9)",
+                        style={"font_size": "10px"},
+                    ),
+                    spacing="0",
+                    align="start",
+                ),
+                rx.spacer(),
+                rx.icon_button(
+                    rx.icon("x", size=13),
+                    size="1",
+                    variant="ghost",
+                    color_scheme="gray",
+                    on_click=ChatState.clear_uploaded_image,
+                    title="Remove picture",
+                    style={"cursor": "pointer", "border_radius": "50%"},
+                ),
+                align="center",
+                width="100%",
+                padding="4px 8px",
+                background="var(--gray-3)",
+                border="1px solid var(--gray-5)",
+                border_radius="10px",
+                margin_bottom="6px",
+            ),
+        ),
+        # Uploading progress banner
+        rx.cond(
+            ChatState.is_uploading,
+            rx.hstack(
+                rx.spinner(size="1", color="var(--purple-9)"),
+                rx.text("Uploading picture...", size="1", color="var(--gray-10)", style={"font_size": "11px"}),
+                align="center",
+                spacing="2",
+                padding="2px 4px",
+                margin_bottom="4px",
+            ),
+        ),
         rx.form(
             rx.hstack(
+                # Camera / Picture upload button (desktop click/drop + mobile camera/gallery)
+                rx.upload(
+                    rx.box(
+                        rx.cond(
+                            ChatState.is_uploading,
+                            rx.spinner(size="1", color="var(--gray-11)"),
+                            rx.icon(
+                                "camera",
+                                size=16,
+                                color=rx.cond(ChatState.has_attached_image, "var(--purple-9)", "var(--gray-11)"),
+                            ),
+                        ),
+                        title="Upload picture (camera or gallery)",
+                        style={
+                            "width": "34px",
+                            "height": "34px",
+                            "min_width": "34px",
+                            "border_radius": "50%",
+                            "background": rx.cond(ChatState.has_attached_image, "var(--purple-3)", "var(--gray-3)"),
+                            "border": rx.cond(ChatState.has_attached_image, "1px solid var(--purple-7)", "1px solid var(--gray-5)"),
+                            "display": "flex",
+                            "align_items": "center",
+                            "justify_content": "center",
+                            "cursor": "pointer",
+                            "transition": "all 0.15s ease",
+                            "&:hover": {
+                                "background": "var(--gray-4)",
+                            },
+                            "&:active": {
+                                "transform": "scale(0.92)",
+                            },
+                        },
+                    ),
+                    id="chat_image_upload",
+                    accept={"image/*": [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"]},
+                    max_files=1,
+                    border="none",
+                    padding="0",
+                    background="transparent",
+                    on_drop=ChatState.handle_upload,
+                ),
                 rx.input(
                     placeholder=rx.cond(
                         ChatState.is_thinking,
                         "AI is thinking...",
-                        "Message Kcal AI...",
+                        rx.cond(
+                            ChatState.has_attached_image,
+                            "Add note or tap send...",
+                            "Message or snap food pic...",
+                        ),
                     ),
                     value=ChatState.chat_input,
                     on_change=ChatState.set_chat_input,
@@ -326,7 +455,7 @@ def chat_composer() -> rx.Component:
                         rx.icon("arrow-up", size=15, color="white"),
                     ),
                     type="submit",
-                    disabled=ChatState.is_thinking,
+                    disabled=ChatState.is_thinking | ChatState.is_uploading,
                     style={
                         "width": "34px",
                         "height": "34px",
@@ -382,13 +511,13 @@ def chat_dialog() -> rx.Component:
             chat_composer(),
             style={
                 "position": "fixed",
-                "bottom": rx.breakpoints(initial="16px", sm="20px"),
-                "right": rx.breakpoints(initial="16px", sm="20px"),
+                "bottom": rx.breakpoints(initial="12px", sm="20px"),
+                "right": rx.breakpoints(initial="12px", sm="20px"),
                 "z_index": "1000",
-                "width": rx.breakpoints(initial="calc(100vw - 32px)", sm="350px", md="360px"),
-                "max_width": "360px",
-                "height": rx.breakpoints(initial="440px", sm="460px"),
-                "max_height": "calc(100vh - 80px)",
+                "width": rx.breakpoints(initial="calc(100vw - 24px)", sm="360px", md="380px"),
+                "max_width": "400px",
+                "height": rx.breakpoints(initial="480px", sm="480px"),
+                "max_height": "calc(100dvh - 24px)",
                 "background": "var(--gray-2)",
                 "border": "1px solid var(--gray-5)",
                 "border_radius": "18px",
