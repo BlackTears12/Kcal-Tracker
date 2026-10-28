@@ -1,10 +1,26 @@
+from contextvars import ContextVar
+from dataclasses import dataclass
+from datetime import date
 from google import genai
 from pydantic import BaseModel, Field
-from typing import cast, Optional
 from PIL import Image
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
-import kcal_tracker.state_accessor as state_accessor
+from kcal_tracker.models.services import DuplicateRecipeError, NutritionService, RecipeService
+
+
+@dataclass
+class AgentContext:
+    user_id: str
+    day: date
+
+
+# The user and viewed day of the prompt being answered, read by the tools below
+_context: ContextVar[AgentContext] = ContextVar("agent_context")
+
+
+def _nutrition() -> NutritionService:
+    return NutritionService(_context.get().user_id)
 
 
 class MealSchema(BaseModel):
@@ -35,8 +51,8 @@ class MealSchema(BaseModel):
     def to_app_meal(self) -> Meal:
         category = MealCategory.Breakfast
         try:
-            category = MealCategory(self.category)
-        except:
+            category = MealCategory(self.category.strip().capitalize())
+        except ValueError:
             pass
         return Meal(
             id=self.id,
@@ -51,35 +67,32 @@ class MealSchema(BaseModel):
 
 
 async def get_meals(category: str = "all") -> list[MealSchema]:
-    """Returns the list of meals registered today.
+    """Returns the meals logged on the day the user is viewing.
 
-    Args: 
+    Args:
         category: optional meal category to filter by (breakfast, lunch, dinner, snack, or all)
     """
-    print("get_meals!!!")
-    nutrition_state = await state_accessor.get_nutrition_state()
-    return [MealSchema.from_app_meal(app_meal) for app_meal in nutrition_state.logged_meals]
+    meals = _nutrition().meals_on(_context.get().day)
+    if category.strip().lower() != "all":
+        meals = [m for m in meals if m.category.value.lower() == category.strip().lower()]
+    return [MealSchema.from_app_meal(m) for m in meals]
 
 
-async def add_meals(meals: list[MealSchema]):
-    """Register a list of meals eaten by the user today"""
-    print("add_meals!!!")
-    nutrition_state = await state_accessor.get_nutrition_state()
-    await nutrition_state.add_meal_list([m.to_app_meal() for m in meals])
+async def add_meals(meals: list[MealSchema]) -> str:
+    """Log a list of meals eaten by the user on the day they are viewing"""
+    added = _nutrition().add_meals([m.to_app_meal() for m in meals], _context.get().day)
+    return "Logged meals: " + ", ".join(f"{m.name} (id {m.id})" for m in added)
 
 
-async def update_meal(meal: MealSchema):
+async def update_meal(meal: MealSchema) -> str:
     """Update a logged meal with the same id"""
-    print("update_meal!!!")
-    nutrition_state = await state_accessor.get_nutrition_state()
-    await nutrition_state.update_meal(meal.to_app_meal())
+    updated = _nutrition().update_meal(meal.to_app_meal())
+    return f"Updated meal '{updated.name}'." if updated else f"Error: no logged meal with id {meal.id}."
 
 
-async def remove_meal(id: int):
+async def remove_meal(id: int) -> str:
     """Remove the meal from the log with the specified id"""
-    print("remove_meal!!!")
-    nutrition_state = await state_accessor.get_nutrition_state()
-    await nutrition_state.remove_meal(id)
+    return "Meal removed." if _nutrition().remove_meal(id) else f"Error: no logged meal with id {id}."
 
 
 class IngredientSchema(BaseModel):
@@ -144,50 +157,59 @@ class RecipeSchema(BaseModel):
 
 async def get_recipes() -> list[RecipeSchema]:
     """Returns the list of saved recipes including their ingredients, servings, and instructions."""
-    print("get_recipes!!!")
-    recipes_state = await state_accessor.get_recipes_state()
-    return [RecipeSchema.from_app_recipe(r) for r in recipes_state.recipes]
+    return [RecipeSchema.from_app_recipe(r) for r in RecipeService().list_recipes()]
 
 
 async def add_recipe(recipe: RecipeSchema) -> str:
     """Create and save a new recipe with its ingredients, servings, and instructions. Recipe names must be unique."""
-    print("add_recipe!!!")
-    recipes_state = await state_accessor.get_recipes_state()
-    existing = recipes_state.has_recipe(recipe.name)
-    if existing:
-        return f"Error: A recipe with the name '{recipe.name}' already exists."
-    app_recipe = recipe.to_app_recipe()
-    recipes_state.add_recipe(app_recipe)
+    try:
+        RecipeService().add_recipe(recipe.to_app_recipe())
+    except DuplicateRecipeError as e:
+        return f"Error: {e}"
     return f"Successfully saved recipe '{recipe.name}'."
 
 
-async def update_recipe(recipe: RecipeSchema):
-    """Update an existing saved recipe with the specified name."""
-    print("update_recipe!!!")
-    recipes_state = await state_accessor.get_recipes_state()
-    await recipes_state.update_recipe(recipe.to_app_recipe())
+async def update_recipe(recipe: RecipeSchema, adjust_logged_meals: bool = True) -> str:
+    """Update an existing saved recipe with the specified name.
+
+    Args:
+        recipe: the full new version of the recipe
+        adjust_logged_meals: also update the name and macros of meals already logged from this recipe
+    """
+    service = RecipeService()
+    existing = service.get_recipe(recipe.name)
+    if existing is None:
+        return f"Error: no saved recipe named '{recipe.name}'."
+    app_recipe = recipe.to_app_recipe()
+    app_recipe.id = existing.id
+    service.update_recipe(app_recipe, adjust_logged_meals=adjust_logged_meals)
+    return f"Updated recipe '{recipe.name}'."
 
 
-async def remove_recipe(name: str):
+async def remove_recipe(name: str) -> str:
     """Remove a recipe from the saved recipes collection with the specified name."""
-    print("remove_recipe!!!")
-    recipes_state = await state_accessor.get_recipes_state()
-    recipes_state.remove_recipe(name)
+    return "Recipe removed." if RecipeService().remove_recipe(name) else f"Error: no saved recipe named '{name}'."
 
 
-async def log_recipe_as_meal(recipe_name: str):
-    """Log one serving of a saved recipe as an eaten meal for today by specifying the recipe name."""
-    print("log_recipe_as_meal!!!")
-    recipes_state = await state_accessor.get_recipes_state()
-    if recipes_state.has_recipe(recipe_name):
-        await recipes_state.log_recipe_as_meal(recipe_name)
+async def log_recipe_as_meal(recipe_name: str, servings: float = 1.0) -> str:
+    """Log servings of a saved recipe as an eaten meal on the day the user is viewing.
+
+    Args:
+        recipe_name: name of the saved recipe
+        servings: number of servings eaten
+    """
+    recipe = RecipeService().get_recipe(recipe_name)
+    if recipe is None:
+        return f"Error: no saved recipe named '{recipe_name}'."
+    meal = _nutrition().log_recipe(recipe, _context.get().day, servings)
+    return f"Logged {servings:g} serving(s) of '{recipe.name}' (meal id {meal.id})."
 
 
 class TargetMacrosSchema(BaseModel):
-    calories: float = Field(description="Daily target calories in kcal")
-    protein_g: float = Field(description="Daily target protein in grams")
-    carbs_g: float = Field(description="Daily target carbohydrates in grams")
-    fat_g: float = Field(description="Daily target fat in grams")
+    calories: float | None = Field(default=None, description="Daily target calories in kcal")
+    protein_g: float | None = Field(default=None, description="Daily target protein in grams")
+    carbs_g: float | None = Field(default=None, description="Daily target carbohydrates in grams")
+    fat_g: float | None = Field(default=None, description="Daily target fat in grams")
 
     @classmethod
     def from_macro_profile(cls, profile: MacroProfile) -> "TargetMacrosSchema":
@@ -201,34 +223,33 @@ class TargetMacrosSchema(BaseModel):
 
 async def get_target_macros() -> TargetMacrosSchema:
     """Returns the user's daily target nutritional macros (calories in kcal, protein in grams, carbs in grams, fat in grams)."""
-    print("get_target_macros!!!")
-    nutrition_state = await state_accessor.get_nutrition_state()
-    return TargetMacrosSchema.from_macro_profile(nutrition_state.targets)
+    return TargetMacrosSchema.from_macro_profile(_nutrition().get_targets())
 
 
 async def set_target_macros(
     target: TargetMacrosSchema
 ) -> str:
     """Set or update the user's daily target nutritional macros. Any omitted/unspecified macro parameters will keep their current target values."""
-    print("set_target_macros!!!")
-    nutrition_state = await state_accessor.get_nutrition_state()
-    nutrition_state.set_targets(
-        calories=target.calories,
-        protein=target.protein_g,
-        carbs=target.carbs_g,
-        fat=target.fat_g,
-    )
+    service = _nutrition()
+    current = service.get_targets()
+    saved = service.set_targets(MacroProfile(
+        calories=current.calories if target.calories is None else target.calories,
+        protein=current.protein if target.protein_g is None else target.protein_g,
+        carbs=current.carbs if target.carbs_g is None else target.carbs_g,
+        fat=current.fat if target.fat_g is None else target.fat_g,
+    ))
     return (
-        f"Daily target macros successfully updated: "
-        f"Calories: {nutrition_state.target_calories} kcal, "
-        f"Protein: {nutrition_state.target_protein}g, "
-        f"Carbs: {nutrition_state.target_carbs}g, "
-        f"Fat: {nutrition_state.target_fat}g"
+        f"Daily target macros successfully updated (minimums: 500 kcal, 10g protein, 10g carbs, 5g fat): "
+        f"Calories: {round(saved.calories)} kcal, "
+        f"Protein: {round(saved.protein)}g, "
+        f"Carbs: {round(saved.carbs)}g, "
+        f"Fat: {round(saved.fat)}g"
     )
 
 
-chat_instance = None
 client = genai.Client()
+# One conversation per user
+_chats: dict[str, genai.chats.AsyncChat] = {}
 
 SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
 - When the user states what they ate, calculate macros accurately and call add_meals immediately. Specify amount and unit (g, dkg, kg, ml, dl, l, serving).
@@ -243,9 +264,8 @@ SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 
-def init_agent():
-    global chat_instance, client
-    chat_instance = client.aio.chats.create(
+def _create_chat() -> genai.chats.AsyncChat:
+    return client.aio.chats.create(
         model=GEMINI_MODEL,
         config={
             "tools": [
@@ -266,13 +286,22 @@ def init_agent():
     )
 
 
-async def send_prompt(prompt: str, image_path="") -> str:
-    global chat_instance
-    if chat_instance is None:
-        init_agent()
+def reset_chat(user_id: str):
+    _chats.pop(user_id, None)
+
+
+async def send_prompt(user_id: str, day: date, prompt: str, image_path="") -> str:
+    """Sends the prompt to the user's conversation, tools act on that user's data for the given day."""
+    chat = _chats.get(user_id)
+    if chat is None:
+        chat = _chats[user_id] = _create_chat()
     content = prompt
     if image_path:
         img = Image.open(image_path)
         content = [img, prompt]
-    response = await chat_instance.send_message(content) # type: ignore
+    token = _context.set(AgentContext(user_id=user_id, day=day))
+    try:
+        response = await chat.send_message(content)  # type: ignore
+    finally:
+        _context.reset(token)
     return response.text or ""

@@ -1,16 +1,14 @@
 import reflex as rx
 from datetime import datetime, date, timedelta
-import kcal_tracker.models.data_repository as data_repository
+from kcal_tracker.models.services import NutritionService
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.unit import Unit
+from kcal_tracker.states.login_state import current_user_id
 
 class NutritionState(rx.State):
     logged_meals: list[Meal] = []
     date_context: date = date.today()
     targets: MacroProfile = MacroProfile()
-    
-    used_meal_ids: set[int] = set()
-    user_id: str = ""
 
     # Computed vars
     @rx.var
@@ -128,76 +126,47 @@ class NutritionState(rx.State):
         return len(self.logged_meals)
 
     # Event handlers
-    def on_login(self, user_id: str):
-        if not user_id or user_id == "shared":
-            return
-        if self.user_id == user_id:
-            return
-        self.user_id = user_id
-        self.refresh()
+    async def view_next_day(self):
+        await self._view_date(self.date_context + timedelta(days=1))
 
-    def refresh(self):
-        self.targets = data_repository.load_targets(self.user_id)
-        self.view_date(date.today())
+    async def view_previous_day(self):
+        await self._view_date(self.date_context - timedelta(days=1))
 
-    async def add_meal(self, meal: Meal):
-        meal.id = self.assign_meal_id()
-        meal.date = self.date_context
-        self.logged_meals = self.logged_meals + [meal]
-        await self._save_meals()
-
-    async def add_meal_list(self, meals: list[Meal]):
-        for m in meals:
-            m.id = self.assign_meal_id()
-            m.date = self.date_context
-        self.logged_meals = self.logged_meals + meals
-        await self._save_meals()
+    async def view_today(self):
+        await self._view_date(date.today())
 
     async def remove_meal(self, id: int):
-        self.logged_meals = [m for m in self.logged_meals if m.id != id]        
-        await self._save_meals()
-
-    async def update_meal(self, meal: Meal):
-        self.logged_meals = [meal if m.id == meal.id else m for m in self.logged_meals]
-        await self._save_meals()
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
+        NutritionService(user_id).remove_meal(id)
+        self._reload(user_id)
 
     def clear_all_meals(self):
-        self.logged_meals = []
-
-    def set_targets(self, calories: float, protein: float, carbs: float, fat: float):
-        self.targets = MacroProfile(
-            calories=max(500.0, float(calories)),
-            protein=max(10.0, float(protein)),
-            carbs=max(10.0, float(carbs)),
-            fat=max(5.0, float(fat)),
+        return rx.call_script(
+            f"window.confirm('Delete all meals logged on {self.short_date}?')",
+            callback=NutritionState.confirm_clear_all_meals,
         )
-        data_repository.save_targets(self.user_id,self.targets)
 
-    def view_next_day(self):
-        self.view_date(self.date_context + timedelta(days=1))
+    async def confirm_clear_all_meals(self, confirmed: bool):
+        user_id = await current_user_id(self)
+        if user_id is None or not confirmed:
+            return
+        NutritionService(user_id).clear_day(self.date_context)
+        self._reload(user_id)
 
-    def view_previous_day(self):
-        self.view_date(self.date_context - timedelta(days=1))
-
-    def view_today(self):
-        self.view_date(date.today())
-
-    def view_date(self, new_date: date):
+    # Utilities, private so the client can't call them with another user's id
+    async def _view_date(self, new_date: date):
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
         self.date_context = new_date
-        self.logged_meals = data_repository.load_meals(self.user_id,self.date_context)
-        for m in self.logged_meals:
-            m.id = self.assign_meal_id()
+        self._reload(user_id)
 
-    # Utilities
-    def assign_meal_id(self) -> int:
-        new_id = 1
-        while new_id in self.used_meal_ids:
-            new_id += 1
-        self.used_meal_ids.add(new_id)
-        return new_id
-
-    async def _save_meals(self):
-        data_repository.save_meals(self.user_id,self.logged_meals,self.date_context)
+    def _reload(self, user_id: str):
+        service = NutritionService(user_id)
+        self.logged_meals = service.meals_on(self.date_context)
+        self.targets = service.get_targets()
 
 
 class MealDialogState(rx.State):
@@ -307,7 +276,11 @@ class MealDialogState(rx.State):
     async def save_meal(self):
         if not self.name.strip():
             return
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
 
+        service = NutritionService(user_id)
         nutrition_state = await self.get_state(NutritionState)
         macros = MacroProfile(
             calories=float(self.calories),
@@ -317,37 +290,38 @@ class MealDialogState(rx.State):
         )
 
         if self.is_editing_meal:
-            existing = next((m for m in nutrition_state.logged_meals if m.id == self.meal_id), None)
-            meal_date = existing.date if existing else nutrition_state.date_context
+            existing = service.get_meal(self.meal_id)
+            if existing is None:
+                self.show_modal = False
+                return
 
             updated_meal = Meal(
                 id=self.meal_id,
                 name=self.name.strip(),
                 category=self.category,
                 macros=macros,
-                date=meal_date,
                 amount=self.amount,
                 unit=self.unit
             )
 
             # if editing a meal with scale macros use the original amount as base for the scaling
-            if existing and self.scale_macros:
+            if self.scale_macros:
                 updated_meal.amount = existing.amount
                 updated_meal.unit = existing.unit
                 updated_meal = updated_meal.scale_size(self.amount,self.unit)
                 
-            await nutrition_state.update_meal(updated_meal)
+            service.update_meal(updated_meal)
         else:
-            new_meal = Meal(                
+            new_meal = Meal(
                 name=self.name.strip(),
                 category=self.category,
                 macros=macros,
-                date=nutrition_state.date_context,
                 amount=float(self.amount),
                 unit=self.unit,
             )
-            await nutrition_state.add_meal(new_meal)
+            service.add_meals([new_meal], nutrition_state.date_context)
 
+        nutrition_state._reload(user_id)
         self.show_modal = False
 
 
@@ -436,11 +410,9 @@ class TargetDialogState(rx.State):
         self.show_modal = False
 
     async def save_targets(self):
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
         nutrition_state = await self.get_state(NutritionState)
-        nutrition_state.set_targets(
-            calories=self.target.calories,
-            protein=self.target.protein,
-            carbs=self.target.carbs,
-            fat=self.target.fat,
-        )
+        nutrition_state.targets = NutritionService(user_id).set_targets(self.target)
         self.show_modal = False

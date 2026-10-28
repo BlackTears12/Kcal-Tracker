@@ -2,12 +2,12 @@ import reflex as rx
 from kcal_tracker.data.meal import *
 from kcal_tracker.states.nutrition_state import NutritionState
 from kcal_tracker.data.recipe import *
-import kcal_tracker.models.data_repository as data_repository
+from kcal_tracker.models.services import DuplicateRecipeError, NutritionService, RecipeService
+from kcal_tracker.states.login_state import current_user_id
 
 
 class RecipesState(rx.State):
-    recipes: list[Recipe] = data_repository.load_recipes()
-    user_id: str = "shared"
+    recipes: list[Recipe] = []
 
     # Computed vars
     @rx.var
@@ -15,67 +15,40 @@ class RecipesState(rx.State):
         return len(self.recipes)
 
     # Event handlers
-    def on_login(self, user_id: str):
-        if not user_id or user_id == "shared":
+    async def load(self):
+        if await current_user_id(self) is None:
             return
-        if self.user_id == user_id:
+        self._reload()
+
+    async def remove_recipe(self, name: str):
+        if await current_user_id(self) is None:
             return
-        self.user_id = user_id
-        self.recipes = data_repository.load_recipes()
-        
-    def add_recipe(self, recipe: Recipe):
-        if self.has_recipe(recipe.name):
-            return rx.window_alert(f"A recipe with the name '{recipe.name}' already exists.")
-        self.recipes = self.recipes + [recipe]
-        data_repository.save_recipes(self.recipes)
+        RecipeService().remove_recipe(name)
+        self._reload()
 
-    def remove_recipe(self, name: str):
-        self.recipes = [r for r in self.recipes if r.name.strip().lower() != name.strip().lower()]
-        data_repository.save_recipes(self.recipes)
-
-    async def update_recipe(self, recipe: Recipe, old_name: str = "", adjust_logged_meals: bool = True):
-        target = (old_name or recipe.name).strip().lower()
-        self.recipes = [recipe if r.name.strip().lower() == target else r for r in self.recipes]
-        data_repository.save_recipes(self.recipes)
-        if adjust_logged_meals:
-          meal = Meal(
-              name=recipe.name,
-              macros=recipe.macros_per_serving(),
-              amount=1.0,
-              unit=Unit("serving")
-          )
-          data_repository.adjust_logged_recipe_meal_instances(old_name, meal)
-          nutrition_state = await self.get_state(NutritionState)
-          nutrition_state.refresh()
-
-    async def log_recipe_as_meal(self, recipe: Recipe | str):
-        if isinstance(recipe, str):
-            recipe = self.get_recipe(recipe)
+    async def log_recipe_as_meal(self, recipe: Recipe):
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
         if isinstance(recipe, dict):
             recipe = Recipe(**recipe)
+        stored = RecipeService().get_recipe_by_id(recipe.id)
+        if stored is None:
+            return rx.window_alert(f"The recipe '{recipe.name}' no longer exists.")
         nutrition_state = await self.get_state(NutritionState)
-        new_meal = Meal(            
-            name=recipe.name,
-            category=MealCategory.Lunch,
-            macros=recipe.macros_per_serving(),
-            date=nutrition_state.date_context,
-            amount=1.0,
-            unit=Unit("serving"),
-        )
-        await nutrition_state.add_meal(new_meal)
+        NutritionService(user_id).log_recipe(stored, nutrition_state.date_context)
+        nutrition_state._reload(user_id)
 
-    def has_recipe(self, name: str):
-        return name.lower().strip() in [r.name.lower().strip() for r in self.recipes]
-
-    def get_recipe(self, name: str):
-        return next(filter(lambda r: r.name.lower().strip() == name.lower().strip(), self.recipes))
+    # Utilities
+    def _reload(self):
+        self.recipes = RecipeService().list_recipes()
 
 class RecipeDialogState(rx.State):
     show_modal: bool = False
     is_editing_recipe: bool = False
 
     # Form fields
-    original_name: str = ""
+    recipe_id: int = 0
     name: str = ""
     error_message: str = ""
     instructions: str = ""
@@ -197,7 +170,7 @@ class RecipeDialogState(rx.State):
 
     def open_add_recipe(self):
         self.is_editing_recipe = False
-        self.original_name = ""
+        self.recipe_id = 0
         self.name = ""
         self.error_message = ""
         self.instructions = ""
@@ -215,8 +188,10 @@ class RecipeDialogState(rx.State):
         self.show_modal = True
 
     def open_edit_recipe(self, recipe: Recipe):
+        if isinstance(recipe, dict):
+            recipe = Recipe(**recipe)
         self.is_editing_recipe = True
-        self.original_name = recipe.name
+        self.recipe_id = recipe.id
         self.name = recipe.name
         self.error_message = ""
         self.instructions = recipe.instructions
@@ -236,59 +211,46 @@ class RecipeDialogState(rx.State):
         if not trimmed_name:
             self.error_message = "Recipe title cannot be empty."
             return
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
+
+        service = RecipeService()
+        recipe = Recipe(
+            id=self.recipe_id,
+            name=trimmed_name,
+            instructions=self.instructions.strip(),
+            ingredients=self._ingredients_to_save(service),
+            servings=max(1, int(self.servings)),
+        )
+        try:
+            if self.is_editing_recipe:
+                service.update_recipe(recipe, adjust_logged_meals=self.adjust_logged_meals)
+            else:
+                service.add_recipe(recipe)
+        except DuplicateRecipeError as e:
+            self.error_message = str(e)
+            return rx.window_alert(str(e))
 
         recipes_state = await self.get_state(RecipesState)
-        name_changed = trimmed_name.lower() != self.original_name.strip().lower()
-
-        # Check for duplicate recipe name
-        if (self.is_editing_recipe and name_changed and recipes_state.has_recipe(trimmed_name)) or (not self.is_editing_recipe and recipes_state.has_recipe(trimmed_name)):
-            self.error_message = f"A recipe with the name '{trimmed_name}' already exists."
-            return rx.window_alert(f"A recipe with the name '{trimmed_name}' already exists.")
-
-        valid_ingredients = await self.handle_ingredients_on_save()
-        if self.is_editing_recipe:
-            ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
-
-            updated_recipe = Recipe(
-                name=trimmed_name,
-                instructions=self.instructions.strip(),
-                ingredients=valid_ingredients,
-                servings=max(1, int(self.servings)),
-                ingredients_text=ingredients_text,
-            )
-            await recipes_state.update_recipe(updated_recipe, old_name=self.original_name, adjust_logged_meals=self.adjust_logged_meals)
-        else:
-            ingredients_text = ", ".join(f"{ing.amount:g}{ing.unit.unit} {ing.name}" for ing in valid_ingredients if ing.name.strip())
-            new_recipe = Recipe(
-                name=trimmed_name,
-                instructions=self.instructions.strip(),
-                ingredients=valid_ingredients,
-                servings=max(1, int(self.servings)),
-                ingredients_text=ingredients_text,
-            )
-            recipes_state.add_recipe(new_recipe)
-
+        recipes_state._reload()
+        nutrition_state = await self.get_state(NutritionState)
+        nutrition_state._reload(user_id)
         self.show_modal = False
         self.error_message = ""
 
-    async def handle_ingredients_on_save(self):
-        new_ingredients = [
-            ing for ing in self.ingredients if ing.name.strip() or ing.amount > 0
-        ]
-        new_ingredient_names = [ing.name for ing in new_ingredients]
-        def get_ingredient(name: str):
-            return next(filter(lambda ing: ing.name.lower().strip() == name.lower().strip(), new_ingredients))
-            
-        recipes_state = await self.get_state(RecipesState)
-        if self.scale_macros:
-          existing = recipes_state.get_recipe(self.original_name)
-          scaled_ingredients = []
-          for ing in existing.ingredients:
-              if ing.name not in new_ingredient_names:
-                  continue
-              new_ing = get_ingredient(ing.name)
-              scaled_ingredients.append(ing.scale_size(new_ing.amount,new_ing.unit))
-          new_ingredients = scaled_ingredients
-        return new_ingredients
+    def _ingredients_to_save(self, service: RecipeService) -> list[Ingredient]:
+        ingredients = [ing for ing in self.ingredients if ing.name.strip()]
+        original = service.get_recipe_by_id(self.recipe_id) if self.is_editing_recipe else None
+        if not self.scale_macros or original is None:
+            return ingredients
 
-        
+        # Macros are per unit: convert them for ingredients whose unit changed since the recipe was saved
+        originals = {ing.name.strip().lower(): ing for ing in original.ingredients}
+        converted = []
+        for ing in ingredients:
+            old = originals.get(ing.name.strip().lower())
+            if old is not None and old.unit.unit != ing.unit.unit:
+                ing = Ingredient(ing.name, ing.macros_per_unit, old.amount, old.unit).scale_size(ing.amount, ing.unit)
+            converted.append(ing)
+        return converted

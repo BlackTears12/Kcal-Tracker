@@ -17,10 +17,7 @@ from .chat_state import (
     ChatMessage,
     ChatState,
 )
-from .profile_state import (
-    Profile,
-    ProfileState
-)
+from .login_state import Login
 from .ui_state import UIState
 
 __all__ = [
@@ -28,8 +25,7 @@ __all__ = [
     "MealCategory",
     "Meal",
     "Unit",
-    "Profile",
-    "ProfileState",
+    "Login",
     "NutritionState",
     "MealDialogState",
     "TargetDialogState",

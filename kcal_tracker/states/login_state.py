@@ -2,17 +2,14 @@ import json
 import reflex as rx
 from reflex_google_auth import GoogleAuthState
 from reflex_google_auth.state import get_token
-from kcal_tracker import state_accessor
-from kcal_tracker.states.nutrition_state import NutritionState
-from kcal_tracker.states.recipes_state import RecipesState
-from kcal_tracker.states.profile_state import *
-import kcal_tracker.models.agent as agent
-import kcal_tracker.models.data_repository as data_repository
+import kcal_tracker.models.services as services
 
-# 1. Inherit from GoogleAuthState to track user login status
+
 class Login(GoogleAuthState):
     valid_login: bool = False
-    
+    # Email of the authorized user, backend only so the client can't set it
+    _user_id: str = ""
+
     @rx.var
     def user_name(self) -> str:
         """Fetch the user's name if authenticated."""
@@ -25,8 +22,7 @@ class Login(GoogleAuthState):
     def user_mail(self) -> str:
         """Fetch the user's mail if authenticated."""
         if self.token_is_valid:
-            # self.tokeninfo contains profile fields: name, email, picture, sub, etc.
-            return self.tokeninfo.get("email", "user@mail.com")
+            return self.tokeninfo.get("email", "")
         return ""
 
     @rx.var
@@ -41,28 +37,20 @@ class Login(GoogleAuthState):
         return self.token_is_valid and self.valid_login
 
     async def on_login(self):
-        """Called upon page load or login to initialize the session state accessor."""
+        """Called upon page load or login, authorizes the user and loads their data."""
         if not self.token_is_valid:
+            self.valid_login = False
+            self._user_id = ""
             return
-        profile = self.validate_login(str(self.user_mail))
+        profile = services.find_profile(str(self.user_mail))
         self.valid_login = profile is not None
+        self._user_id = profile.email if profile else ""
         if not profile:
             return rx.window_alert("This mail is not authorized, if you believe this is a mistake, please contact me :)")
-        state_accessor.init(self)
-        agent.init_agent()
-        profile_state = await self.get_state(ProfileState)
-        profile_state.on_login(profile)
-        nutrition_state = await self.get_state(NutritionState)
-        nutrition_state.on_login(profile_state.get_id())
-        recipes_state = await self.get_state(RecipesState)
-        recipes_state.on_login(profile_state.get_id())
-
-    def validate_login(self, email: str):
-        profiles = data_repository.load_registered_profiles()
-        for p in profiles:
-            if p.email == email:
-                return p
-        return None
+        # Imported here because these states import this module for current_user_id
+        from kcal_tracker.states.nutrition_state import NutritionState
+        from kcal_tracker.states.recipes_state import RecipesState
+        return [NutritionState.view_today, RecipesState.load]
 
     @rx.event
     async def on_success(self, response: dict):
@@ -75,4 +63,18 @@ class Login(GoogleAuthState):
             self.token_response_json = json.dumps(token_response)
             if "refresh_token" in token_response:
                 self.refresh_token = token_response["refresh_token"]
-        return Login.on_login    
+        return Login.on_login
+
+
+async def current_user_id(state: rx.State) -> str | None:
+    """Returns the authorized user's id for this session, or None if it isn't logged in.
+
+    Every event handler touching user data must check this, hiding the UI is not enough.
+    """
+    login = await state.get_state(Login)
+    if not (login.valid_login and login._user_id and login.token_is_valid):
+        return None
+    # The token may have been swapped for another account since on_login ran
+    if str(login.user_mail).strip().lower() != login._user_id:
+        return None
+    return login._user_id

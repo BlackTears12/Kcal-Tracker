@@ -34,6 +34,7 @@ class Meal:
     date: datetime.date = field(default_factory=datetime.date.today)
     amount: float = 1.0
     unit: Unit = field(default_factory=Unit)
+    recipe_id: int | None = None
 
     def __post_init__(self):
         if isinstance(self.macros, dict):
@@ -60,5 +61,6 @@ class Meal:
             date=self.date,
             amount=new_amount,
             unit=new_unit,
-            macros=self.macros.scale(factor)
+            macros=self.macros.scale(factor),
+            recipe_id=self.recipe_id,
         )

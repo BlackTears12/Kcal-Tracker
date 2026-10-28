@@ -1,11 +1,13 @@
 import reflex as rx
 from dataclasses import dataclass, field
 from datetime import datetime
+import pathlib
 import kcal_tracker.models.agent as agent
 import asyncio
 
-import kcal_tracker.state_accessor as state_accessor
-from kcal_tracker.states.nutrition_state import Meal, NutritionState
+from kcal_tracker.states.login_state import current_user_id
+from kcal_tracker.states.nutrition_state import NutritionState
+from kcal_tracker.states.recipes_state import RecipesState
 
 @dataclass
 class ChatMessage:
@@ -97,7 +99,7 @@ class ChatState(rx.State):
         else:
             file_list = []
 
-        if not file_list:
+        if not file_list or await current_user_id(self) is None:
             return
 
         self.is_uploading = True
@@ -106,7 +108,7 @@ class ChatState(rx.State):
         try:
             file = file_list[0]
             upload_data = await file.read()
-            clean_filename = str(file.filename).replace(" ", "_")
+            clean_filename = pathlib.Path(str(file.filename)).name.replace(" ", "_")
             unique_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{clean_filename}"
             outfile = rx.get_upload_dir() / unique_filename
 
@@ -125,46 +127,53 @@ class ChatState(rx.State):
         self.uploaded_image = ""
         self.uploaded_image_filename = ""
 
+    # Background task so the session isn't locked while waiting for the AI
+    @rx.event(background=True)
     async def handle_submit(self):
-        if not self.chat_input.strip() and not self.uploaded_image:
-            return
-        user_text = self.chat_input.strip()
-        img_path = self.uploaded_image
-        img_filename = self.uploaded_image_filename
+        async with self:
+            user_id = await current_user_id(self)
+            if user_id is None or (not self.chat_input.strip() and not self.uploaded_image):
+                return
+            user_text = self.chat_input.strip()
+            img_path = self.uploaded_image
+            img_filename = self.uploaded_image_filename
 
-        self.chat_input = ""
-        self.uploaded_image = ""
-        self.uploaded_image_filename = ""
+            self.chat_input = ""
+            self.uploaded_image = ""
+            self.uploaded_image_filename = ""
 
-        display_text = user_text if user_text else "Attached a picture"
-        self.add_user_message(display_text, image_filename=img_filename)
-        self.is_thinking = True
-        yield
+            display_text = user_text if user_text else "Attached a picture"
+            self.add_user_message(display_text, image_filename=img_filename)
+            self.is_thinking = True
+            day = (await self.get_state(NutritionState)).date_context
+
+        prompt_to_send = user_text if user_text else "Please analyze this food / meal picture, describe what you see, estimate its calories and macros, or log it."
         try:
-            prompt_to_send = user_text if user_text else "Please analyze this food / meal picture, describe what you see, estimate its calories and macros, or log it."
-            result = await asyncio.wait_for(agent.send_prompt(prompt_to_send, img_path), timeout=60.0)
-            async with self:
-                response = result
-                if response:
-                    self.add_ai_message(response)
+            response = await asyncio.wait_for(agent.send_prompt(user_id, day, prompt_to_send, img_path), timeout=60.0)
         except asyncio.TimeoutError:
-            async with self:
-                response = "Request timed out. No response received within 1 minute."
-                print(response)
+            response = "Request timed out. No response received within 1 minute."
         except Exception as e:
-            async with self:
-                response = f"An error occurred: {str(e)}"
-                print(response)
-        finally:
-            # 3. Always reset is_thinking back to False
-            async with self:
-                self.is_thinking = False
+            print(f"Agent error: {e!r}")
+            response = f"An error occurred: {str(e)}"
+
+        async with self:
+            if response:
+                self.add_ai_message(response)
+            self.is_thinking = False
+            # The agent may have changed meals, targets or recipes
+            nutrition_state = await self.get_state(NutritionState)
+            nutrition_state._reload(user_id)
+            recipes_state = await self.get_state(RecipesState)
+            recipes_state._reload()
 
     def send_quick_prompt(self, prompt_text: str):
         self.chat_input = prompt_text
         return ChatState.handle_submit
 
-    def clear_chat(self):
+    async def clear_chat(self):
+        user_id = await current_user_id(self)
+        if user_id is not None:
+            agent.reset_chat(user_id)
         self.history = []
         self.chat_input = ""
         self.uploaded_image = ""

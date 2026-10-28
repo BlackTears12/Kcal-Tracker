@@ -19,8 +19,8 @@ class Ingredient:
             self.unit = Unit(**self.unit)
 
     def scale_size(self, new_amount: float, new_unit: Unit):
-        old_amount = self.amount if self.amount else 1.0
-        factor = new_amount * new_unit.conversion_factor(self.unit) / old_amount
+        # Macros are per unit, so only a unit change affects them, the amount is applied in calories() etc.
+        factor = new_unit.conversion_factor(self.unit)
         return Ingredient(
             name=self.name,
             amount=new_amount,
@@ -51,6 +51,7 @@ class Ingredient:
 
 @dataclass
 class Recipe:
+    id: int = 0
     name: str = ""
     ingredients: list[Ingredient] = field(default_factory=list)
     servings: int = 1

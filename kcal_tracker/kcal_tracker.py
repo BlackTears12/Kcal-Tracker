@@ -1,6 +1,6 @@
 import reflex as rx
 from reflex_google_auth import google_login, google_oauth_provider, require_google_login
-from kcal_tracker.models.login import Login
+from kcal_tracker.states.login_state import Login
 import kcal_tracker.content as content
 
 def login_content() -> rx.Component:
@@ -34,7 +34,7 @@ def login_content() -> rx.Component:
                     size="2",
                     color="var(--gray-11)",
                 ),
-                # The button triggers UserState.on_success automatically upon login
+                # The button triggers Login.on_success automatically upon login
                 google_login(on_success=Login.on_success),
                 align="center",
                 justify="center",
