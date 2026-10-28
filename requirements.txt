@@ -1,8 +1,8 @@
-reflex==0.9.8
+reflex[db]==0.9.8
 python-dotenv>=1.1.0
 google-auth
 google-genai
 reflex_google_auth
-filelock
+greenlet
 unidecode
 pillow
