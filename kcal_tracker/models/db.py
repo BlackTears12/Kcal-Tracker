@@ -36,6 +36,18 @@ class WorkoutRow(SQLModel, table=True):
     calories_burned: float = 0.0
 
 
+class AuthSessionRow(SQLModel, table=True):
+    __tablename__ = "auth_session"  # type: ignore
+
+    # SHA-256 of the token kept by the browser, the token itself is never stored
+    token_hash: str = Field(primary_key=True)
+    user_id: str = Field(index=True)
+    created_at: datetime.datetime
+    last_seen_at: datetime.datetime
+    expires_at: datetime.datetime
+    user_agent: str = ""
+
+
 class TargetRow(SQLModel, table=True):
     __tablename__ = "target"  # type: ignore
 

@@ -1,5 +1,5 @@
 import reflex as rx
-from kcal_tracker.states import TargetDialogState, NutritionState
+from kcal_tracker.states import TargetDialogState, NutritionState, Login
 
 
 def navbar() -> rx.Component:
@@ -56,6 +56,34 @@ def navbar() -> rx.Component:
                     size="2",
                     on_click=NutritionState.clear_all_meals,
                     style={"cursor": "pointer", "border_radius": "10px"},
+                ),
+                rx.menu.root(
+                    rx.menu.trigger(
+                        rx.button(
+                            rx.icon("circle-user", size=16),
+                            variant="surface",
+                            color_scheme="gray",
+                            size="2",
+                            title="Account",
+                            style={"cursor": "pointer", "border_radius": "10px"},
+                        ),
+                    ),
+                    rx.menu.content(
+                        rx.text(Login.display_name, size="2", weight="bold", color_scheme="gray", padding_x="2", padding_y="1"),
+                        rx.menu.separator(),
+                        rx.menu.item(
+                            rx.icon("log-out", size=14),
+                            "Log out",
+                            on_click=Login.logout,
+                        ),
+                        rx.menu.item(
+                            rx.icon("monitor-smartphone", size=14),
+                            "Log out on all devices",
+                            color="red",
+                            on_click=Login.logout_everywhere,
+                        ),
+                        align="end",
+                    ),
                 ),
                 spacing="2",
                 align="center",

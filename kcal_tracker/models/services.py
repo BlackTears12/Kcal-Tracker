@@ -1,9 +1,12 @@
-"""Business logic for meals, workouts, targets, recipes and profiles.
+"""Business logic for meals, workouts, targets, recipes, profiles and login sessions.
 
 Plain Python with no Reflex dependency: the UI states and the AI agent both go through here.
 """
 import csv
+import hashlib
 import pathlib
+import secrets
+import datetime as dt
 from datetime import date
 from sqlmodel import Session, col, select
 from kcal_tracker.data.meal import *
@@ -11,7 +14,7 @@ from kcal_tracker.data.profile import Profile
 from kcal_tracker.data.recipe import Recipe, Ingredient
 from kcal_tracker.data.workout import Workout, WorkoutType
 from kcal_tracker.models import db
-from kcal_tracker.models.db import IngredientRow, MealRow, RecipeRow, TargetRow, WorkoutRow
+from kcal_tracker.models.db import AuthSessionRow, IngredientRow, MealRow, RecipeRow, TargetRow, WorkoutRow
 
 PROFILES_PATH = pathlib.Path("data", "shared", "profiles_repo.csv")
 
@@ -42,6 +45,76 @@ def load_profiles() -> list[Profile]:
 def find_profile(email: str) -> Profile | None:
     email = email.strip().lower()
     return next((p for p in load_profiles() if p.email == email), None)
+
+# endregion
+
+# region login sessions
+
+SESSION_LIFETIME = dt.timedelta(days=90)
+# Sliding expiry: a used session is extended, but at most this often to avoid a write on every event
+SESSION_RENEW_AFTER = dt.timedelta(days=1)
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(dt.UTC)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+class SessionService:
+    """Long-lived logins: the browser keeps a random token, the database only its hash."""
+
+    def create(self, user_id: str, user_agent: str = "") -> str:
+        """Starts a session for an already authenticated user and returns its token."""
+        token = secrets.token_urlsafe(32)
+        now = _now()
+        with db.session() as s:
+            for expired in s.exec(select(AuthSessionRow).where(AuthSessionRow.expires_at <= now)).all():
+                s.delete(expired)
+            s.add(AuthSessionRow(token_hash=_hash_token(token), user_id=user_id, created_at=now,
+                                 last_seen_at=now, expires_at=now + SESSION_LIFETIME, user_agent=user_agent[:200]))
+            s.commit()
+        return token
+
+    def validate(self, token: str) -> str | None:
+        """Returns the user id of a live session, or None. Sessions of users no longer allowed are revoked."""
+        if not token:
+            return None
+        now = _now()
+        with db.session() as s:
+            row = s.get(AuthSessionRow, _hash_token(token))
+            if row is None:
+                return None
+            if row.expires_at <= now or find_profile(row.user_id) is None:
+                s.delete(row)
+                s.commit()
+                return None
+            if now - row.last_seen_at >= SESSION_RENEW_AFTER:
+                row.last_seen_at, row.expires_at = now, now + SESSION_LIFETIME
+                s.add(row)
+                s.commit()
+            return row.user_id
+
+    def revoke(self, token: str) -> bool:
+        if not token:
+            return False
+        with db.session() as s:
+            row = s.get(AuthSessionRow, _hash_token(token))
+            if row is None:
+                return False
+            s.delete(row)
+            s.commit()
+            return True
+
+    def revoke_all(self, user_id: str) -> int:
+        with db.session() as s:
+            rows = s.exec(select(AuthSessionRow).where(AuthSessionRow.user_id == user_id)).all()
+            for r in rows:
+                s.delete(r)
+            s.commit()
+            return len(rows)
 
 # endregion
 
