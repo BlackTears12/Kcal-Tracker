@@ -3,10 +3,12 @@ from datetime import datetime, date, timedelta
 from kcal_tracker.models.services import NutritionService
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.unit import Unit
+from kcal_tracker.data.workout import Workout, WorkoutType
 from kcal_tracker.states.login_state import current_user_id
 
 class NutritionState(rx.State):
     logged_meals: list[Meal] = []
+    logged_workouts: list[Workout] = []
     date_context: date = date.today()
     targets: MacroProfile = MacroProfile()
 
@@ -44,8 +46,21 @@ class NutritionState(rx.State):
         return round(self.targets.fat)
 
     @rx.var
+    def total_burned(self) -> int:
+        return round(sum(w.calories_burned for w in self.logged_workouts))
+
+    @rx.var
+    def total_workout_minutes(self) -> int:
+        return round(sum(w.duration_min for w in self.logged_workouts))
+
+    @rx.var
+    def calorie_budget(self) -> int:
+        """Calories available today: the target plus what workouts burned."""
+        return round(self.targets.calories + self.total_burned)
+
+    @rx.var
     def remaining_calories(self) -> int:
-        rem = self.targets.calories - self.total_calories
+        rem = self.calorie_budget - self.total_calories
         return max(0, round(rem))
 
     @rx.var
@@ -65,9 +80,9 @@ class NutritionState(rx.State):
 
     @rx.var
     def calorie_percentage(self) -> int:
-        if self.targets.calories <= 0:
+        if self.calorie_budget <= 0:
             return 0
-        pct = int((self.total_calories / self.targets.calories) * 100)
+        pct = int((self.total_calories / self.calorie_budget) * 100)
         return min(100, max(0, pct))
 
     @rx.var
@@ -119,11 +134,15 @@ class NutritionState(rx.State):
 
     @rx.var
     def is_calorie_over(self) -> bool:
-        return self.total_calories > self.targets.calories
+        return self.total_calories > self.calorie_budget
 
     @rx.var
     def meal_count(self) -> int:
         return len(self.logged_meals)
+
+    @rx.var
+    def workout_count(self) -> int:
+        return len(self.logged_workouts)
 
     # Event handlers
     async def view_next_day(self):
@@ -140,6 +159,13 @@ class NutritionState(rx.State):
         if user_id is None:
             return
         NutritionService(user_id).remove_meal(id)
+        self._reload(user_id)
+
+    async def remove_workout(self, id: int):
+        user_id = await current_user_id(self)
+        if user_id is None:
+            return
+        NutritionService(user_id).remove_workout(id)
         self._reload(user_id)
 
     def clear_all_meals(self):
@@ -166,6 +192,7 @@ class NutritionState(rx.State):
     def _reload(self, user_id: str):
         service = NutritionService(user_id)
         self.logged_meals = service.meals_on(self.date_context)
+        self.logged_workouts = service.workouts_on(self.date_context)
         self.targets = service.get_targets()
 
 

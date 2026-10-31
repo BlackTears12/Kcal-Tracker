@@ -12,6 +12,7 @@ from kcal_tracker.components.dashboard import (
     mobile_nav_pills,
 )
 from kcal_tracker.components.meals import meals_section, meal_dialog
+from kcal_tracker.components.workouts import workouts_section, workout_dialog
 from kcal_tracker.components.recipes import recipes_section, recipe_dialog
 from kcal_tracker.components.chat import chat_dialog, chat_fab, chat_section
 
@@ -37,6 +38,10 @@ def main_content() -> rx.Component:
                     meals_section(),
                 ),
                 rx.cond(
+                    UIState.is_workouts_active,
+                    workouts_section(),
+                ),
+                rx.cond(
                     UIState.is_recipes_active,
                     recipes_section(),
                 ),
@@ -52,6 +57,7 @@ def main_content() -> rx.Component:
 
         # Dialog Modals
         meal_dialog(),
+        workout_dialog(),
         recipe_dialog(),
         target_dialog(),
         chat_dialog(),

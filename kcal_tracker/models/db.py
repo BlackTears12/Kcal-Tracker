@@ -24,6 +24,18 @@ class MealRow(SQLModel, table=True):
     recipe_id: int | None = Field(default=None, foreign_key="recipe.id", index=True)
 
 
+class WorkoutRow(SQLModel, table=True):
+    __tablename__ = "workout"  # type: ignore
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    date: datetime.date = Field(index=True)
+    name: str
+    type: str
+    duration_min: float = 0.0
+    calories_burned: float = 0.0
+
+
 class TargetRow(SQLModel, table=True):
     __tablename__ = "target"  # type: ignore
 

@@ -29,7 +29,7 @@ class ChatMessage:
 def get_default_messages() -> list[ChatMessage]:
     return [
         ChatMessage(
-            content="Hey there! 👋 I'm your Kcal AI Coach. Tell me what you ate (e.g. *'Log 2 eggs and toast for breakfast'*), upload a food photo, ask for recipe ideas, or check your remaining macros!",
+            content="Hey there! 👋 I'm your Kcal AI Coach. Tell me what you ate (e.g. *'Log 2 eggs and toast for breakfast'*) or how you trained (e.g. *'I ran 5k in 30 minutes'*), upload a food photo, ask for recipe ideas, or check your remaining macros!",
             time=datetime.now(),
             time_str=datetime.now().strftime("%I:%M %p").lstrip("0"),
             is_ai=True,

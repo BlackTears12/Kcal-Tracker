@@ -1,4 +1,4 @@
-"""Business logic for meals, targets, recipes and profiles.
+"""Business logic for meals, workouts, targets, recipes and profiles.
 
 Plain Python with no Reflex dependency: the UI states and the AI agent both go through here.
 """
@@ -9,8 +9,9 @@ from sqlmodel import Session, col, select
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.profile import Profile
 from kcal_tracker.data.recipe import Recipe, Ingredient
+from kcal_tracker.data.workout import Workout, WorkoutType
 from kcal_tracker.models import db
-from kcal_tracker.models.db import IngredientRow, MealRow, RecipeRow, TargetRow
+from kcal_tracker.models.db import IngredientRow, MealRow, RecipeRow, TargetRow, WorkoutRow
 
 PROFILES_PATH = pathlib.Path("data", "shared", "profiles_repo.csv")
 
@@ -73,8 +74,29 @@ def _editable_meal_fields(meal: Meal) -> dict:
     }
 
 
+def _workout_from_row(row: WorkoutRow) -> Workout:
+    return Workout(
+        id=row.id or 0,
+        name=row.name,
+        type=WorkoutType(row.type),
+        duration_min=row.duration_min,
+        calories_burned=row.calories_burned,
+        date=row.date,
+    )
+
+
+def _editable_workout_fields(workout: Workout) -> dict:
+    """Fields a workout edit may change, its owner and date stay fixed."""
+    return {
+        "name": workout.name.strip(),
+        "type": WorkoutType(workout.type).value,
+        "duration_min": max(0.0, float(workout.duration_min)),
+        "calories_burned": max(0.0, float(workout.calories_burned)),
+    }
+
+
 class NutritionService:
-    """Meals and daily targets of a single user."""
+    """Meals, workouts and daily targets of a single user."""
 
     def __init__(self, user_id: str):
         if not user_id:
@@ -145,6 +167,49 @@ class NutritionService:
         )
         return self.add_meals([meal], day)[0]
 
+    def workouts_on(self, day: date) -> list[Workout]:
+        with db.session() as s:
+            rows = s.exec(select(WorkoutRow)
+                          .where(WorkoutRow.user_id == self.user_id, WorkoutRow.date == day)
+                          .order_by(col(WorkoutRow.id))).all()
+            return [_workout_from_row(r) for r in rows]
+
+    def get_workout(self, workout_id: int) -> Workout | None:
+        with db.session() as s:
+            row = self._own_workout_row(s, workout_id)
+            return _workout_from_row(row) if row else None
+
+    def add_workouts(self, workouts: list[Workout], day: date) -> list[Workout]:
+        with db.session() as s:
+            rows = [WorkoutRow(user_id=self.user_id, date=day, **_editable_workout_fields(w)) for w in workouts]
+            s.add_all(rows)
+            s.commit()
+            for r in rows:
+                s.refresh(r)
+            return [_workout_from_row(r) for r in rows]
+
+    def update_workout(self, workout: Workout) -> Workout | None:
+        """Updates the logged workout with the same id, returns None if the user has no such workout."""
+        with db.session() as s:
+            row = self._own_workout_row(s, workout.id)
+            if row is None:
+                return None
+            for key, value in _editable_workout_fields(workout).items():
+                setattr(row, key, value)
+            s.add(row)
+            s.commit()
+            s.refresh(row)
+            return _workout_from_row(row)
+
+    def remove_workout(self, workout_id: int) -> bool:
+        with db.session() as s:
+            row = self._own_workout_row(s, workout_id)
+            if row is None:
+                return False
+            s.delete(row)
+            s.commit()
+            return True
+
     def get_targets(self) -> MacroProfile:
         with db.session() as s:
             row = s.get(TargetRow, self.user_id)
@@ -166,6 +231,10 @@ class NutritionService:
 
     def _own_meal_row(self, s: Session, meal_id: int) -> MealRow | None:
         row = s.get(MealRow, meal_id)
+        return row if row is not None and row.user_id == self.user_id else None
+
+    def _own_workout_row(self, s: Session, workout_id: int) -> WorkoutRow | None:
+        row = s.get(WorkoutRow, workout_id)
         return row if row is not None and row.user_id == self.user_id else None
 
 # endregion

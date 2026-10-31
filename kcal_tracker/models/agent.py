@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from PIL import Image
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
+from kcal_tracker.data.workout import Workout, WorkoutType
 from kcal_tracker.models.services import DuplicateRecipeError, NutritionService, RecipeService
 
 
@@ -93,6 +94,60 @@ async def update_meal(meal: MealSchema) -> str:
 async def remove_meal(id: int) -> str:
     """Remove the meal from the log with the specified id"""
     return "Meal removed." if _nutrition().remove_meal(id) else f"Error: no logged meal with id {id}."
+
+
+class WorkoutSchema(BaseModel):
+    id: int = Field(default=0, description="The ID of the already logged workout, not used when logging a new workout")
+    name: str = Field(description="Name of the workout, e.g. 5k run, Upper body strength")
+    type: str = Field(default="Other", description="Workout type: Cardio, Strength, Sports, Mobility, or Other")
+    duration_min: float = Field(default=0.0, description="Duration of the workout in minutes")
+    calories_burned: float = Field(description="Estimated kcal burned by the workout")
+
+    @classmethod
+    def from_app_workout(cls, workout: Workout) -> "WorkoutSchema":
+        return cls(
+            id=workout.id,
+            name=workout.name,
+            type=workout.type.value,
+            duration_min=workout.duration_min,
+            calories_burned=workout.calories_burned,
+        )
+
+    def to_app_workout(self) -> Workout:
+        workout_type = WorkoutType.Other
+        try:
+            workout_type = WorkoutType(self.type.strip().capitalize())
+        except ValueError:
+            pass
+        return Workout(
+            id=self.id,
+            name=self.name,
+            type=workout_type,
+            duration_min=self.duration_min,
+            calories_burned=self.calories_burned,
+        )
+
+
+async def get_workouts() -> list[WorkoutSchema]:
+    """Returns the workouts logged on the day the user is viewing."""
+    return [WorkoutSchema.from_app_workout(w) for w in _nutrition().workouts_on(_context.get().day)]
+
+
+async def add_workouts(workouts: list[WorkoutSchema]) -> str:
+    """Log a list of workouts done by the user on the day they are viewing. Burned calories are added to the day's calorie budget."""
+    added = _nutrition().add_workouts([w.to_app_workout() for w in workouts], _context.get().day)
+    return "Logged workouts: " + ", ".join(f"{w.name} (id {w.id})" for w in added)
+
+
+async def update_workout(workout: WorkoutSchema) -> str:
+    """Update a logged workout with the same id"""
+    updated = _nutrition().update_workout(workout.to_app_workout())
+    return f"Updated workout '{updated.name}'." if updated else f"Error: no logged workout with id {workout.id}."
+
+
+async def remove_workout(id: int) -> str:
+    """Remove the workout from the log with the specified id"""
+    return "Workout removed." if _nutrition().remove_workout(id) else f"Error: no logged workout with id {id}."
 
 
 class IngredientSchema(BaseModel):
@@ -253,6 +308,7 @@ _chats: dict[str, genai.chats.AsyncChat] = {}
 
 SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
 - When the user states what they ate, calculate macros accurately and call add_meals immediately. Specify amount and unit (g, dkg, kg, ml, dl, l, serving).
+- When the user describes a workout or exercise they did, estimate the calories burned from the activity, duration and intensity, and call add_workouts. Use get_workouts, update_workout and remove_workout to view or change logged workouts. Burned calories are added to the user's daily calorie budget.
 - When the user asks to create or save a recipe, calculate all ingredients with their amounts, units, and macros per 1 unit, write clear step-by-step instructions, and call add_recipe. Recipes are uniquely identified by their name.
 - When the user asks about their saved recipes or meals, call get_recipes or get_meals.
 - When the user asks to update or remove meals or recipes, use update_meal, remove_meal, update_recipe, or remove_recipe (recipes are identified by name).
@@ -273,6 +329,10 @@ def _create_chat() -> genai.chats.AsyncChat:
                 add_meals,
                 update_meal,
                 remove_meal,
+                get_workouts,
+                add_workouts,
+                update_workout,
+                remove_workout,
                 get_recipes,
                 add_recipe,
                 update_recipe,
