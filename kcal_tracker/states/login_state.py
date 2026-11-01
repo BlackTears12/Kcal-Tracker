@@ -3,6 +3,7 @@ import reflex as rx
 from reflex_google_auth import GoogleAuthState
 from reflex_google_auth.state import get_token
 import kcal_tracker.models.services as services
+from kcal_tracker.data.profile import Profile
 
 
 class Login(GoogleAuthState):
@@ -11,8 +12,15 @@ class Login(GoogleAuthState):
     # Session token, the database only has its hash
     session_token: str = rx.LocalStorage(name="kcal_session")
     display_name: str = ""
+    is_admin: bool = False
+    # Admin only: the other users whose log can be switched to
+    switchable_profiles: list[Profile] = []
+    # Name of the user whose log an admin switched to, empty when working on their own
+    acting_name: str = ""
     # Email of the authorized user, backend only so the client can't set it
     _user_id: str = ""
+    # Email of the user whose log an admin switched to, backend only
+    _acting_as: str = ""
 
     @rx.var
     def user_name(self) -> str:
@@ -40,6 +48,10 @@ class Login(GoogleAuthState):
     def is_valid_login(self) -> bool:
         return self.valid_login
 
+    @rx.var
+    def is_acting_for_other(self) -> bool:
+        return self.acting_name != ""
+
     async def on_login(self):
         """Called upon page load or login, restores the session and loads the user's data."""
         user_id = services.SessionService().validate(self.session_token)
@@ -53,6 +65,11 @@ class Login(GoogleAuthState):
         self.valid_login = True
         self._user_id = user_id
         self.display_name = profile.name if profile and profile.name else user_id
+        self.is_admin = services.is_admin(user_id)
+        self.switchable_profiles = [p for p in services.load_profiles() if p.email != user_id] if self.is_admin else []
+        # A page load always starts on the user's own log
+        self._acting_as = ""
+        self.acting_name = ""
         # Imported here because these states import this module for current_user_id
         from kcal_tracker.states.nutrition_state import NutritionState
         from kcal_tracker.states.recipes_state import RecipesState
@@ -85,6 +102,25 @@ class Login(GoogleAuthState):
         self.session_token = services.SessionService().create(profile.email, self.router.headers.user_agent)
         return Login.on_login
 
+    async def switch_profile(self, email: str):
+        """Admin only: work on another user's log, or on their own with an empty email."""
+        user_id = await current_user_id(self)
+        if user_id is None or not services.is_admin(user_id):
+            return
+        if not email or email == user_id:
+            self._acting_as, self.acting_name = "", ""
+        else:
+            profile = services.find_profile(email)
+            if profile is None:
+                return
+            self._acting_as, self.acting_name = profile.email, profile.name or profile.email
+        # Imported here because these states import this module for current_user_id
+        from kcal_tracker.states.nutrition_state import NutritionState
+        from kcal_tracker.states.chat_state import ChatState
+        # The visible chat belongs to the previous log
+        (await self.get_state(ChatState)).reset()
+        return NutritionState.reload_view
+
     async def logout(self):
         services.SessionService().revoke(self.session_token)
         return await self._end_session()
@@ -112,6 +148,10 @@ class Login(GoogleAuthState):
         self.valid_login = False
         self.display_name = ""
         self._user_id = ""
+        self.is_admin = False
+        self.switchable_profiles = []
+        self.acting_name = ""
+        self._acting_as = ""
 
 
 async def current_user_id(state: rx.State) -> str | None:
@@ -129,3 +169,22 @@ async def current_user_id(state: rx.State) -> str | None:
         login._clear_login()
         return None
     return login._user_id
+
+
+async def acting_user_id(state: rx.State) -> str | None:
+    """Returns whose data this session works on: the logged-in user, or the user an admin switched to.
+
+    Use this for handlers touching meals, workouts and targets, and current_user_id for the
+    session itself (e.g. logging out).
+    """
+    user_id = await current_user_id(state)
+    if user_id is None:
+        return None
+    login = await state.get_state(Login)
+    if not login._acting_as:
+        return user_id
+    if services.is_admin(user_id) and services.find_profile(login._acting_as) is not None:
+        return login._acting_as
+    # Admin rights or the other user were removed: refuse rather than silently write to the admin's own log
+    login._acting_as, login.acting_name = "", ""
+    return None

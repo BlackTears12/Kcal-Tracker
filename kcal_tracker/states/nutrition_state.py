@@ -4,7 +4,7 @@ from kcal_tracker.models.services import NutritionService
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.unit import Unit
 from kcal_tracker.data.workout import Workout, WorkoutType
-from kcal_tracker.states.login_state import current_user_id
+from kcal_tracker.states.login_state import acting_user_id
 
 class NutritionState(rx.State):
     logged_meals: list[Meal] = []
@@ -154,15 +154,18 @@ class NutritionState(rx.State):
     async def view_today(self):
         await self._view_date(date.today())
 
+    async def reload_view(self):
+        await self._view_date(self.date_context)
+
     async def remove_meal(self, id: int):
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
         NutritionService(user_id).remove_meal(id)
         self._reload(user_id)
 
     async def remove_workout(self, id: int):
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
         NutritionService(user_id).remove_workout(id)
@@ -175,7 +178,7 @@ class NutritionState(rx.State):
         )
 
     async def confirm_clear_all_meals(self, confirmed: bool):
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None or not confirmed:
             return
         NutritionService(user_id).clear_day(self.date_context)
@@ -183,7 +186,7 @@ class NutritionState(rx.State):
 
     # Utilities, private so the client can't call them with another user's id
     async def _view_date(self, new_date: date):
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
         self.date_context = new_date
@@ -303,7 +306,7 @@ class MealDialogState(rx.State):
     async def save_meal(self):
         if not self.name.strip():
             return
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
 
@@ -437,7 +440,7 @@ class TargetDialogState(rx.State):
         self.show_modal = False
 
     async def save_targets(self):
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
         nutrition_state = await self.get_state(NutritionState)

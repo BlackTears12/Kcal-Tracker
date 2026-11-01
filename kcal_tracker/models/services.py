@@ -4,6 +4,7 @@ Plain Python with no Reflex dependency: the UI states and the AI agent both go t
 """
 import csv
 import hashlib
+import os
 import pathlib
 import secrets
 import datetime as dt
@@ -45,6 +46,13 @@ def load_profiles() -> list[Profile]:
 def find_profile(email: str) -> Profile | None:
     email = email.strip().lower()
     return next((p for p in load_profiles() if p.email == email), None)
+
+
+def is_admin(user_id: str) -> bool:
+    """Admins can view and edit every user's data. They are listed comma-separated in the
+    KCAL_ADMIN_EMAILS environment variable (.env), and must also be allowed users."""
+    admins = {e.strip().lower() for e in os.environ.get("KCAL_ADMIN_EMAILS", "").split(",") if e.strip()}
+    return user_id.strip().lower() in admins and find_profile(user_id) is not None
 
 # endregion
 

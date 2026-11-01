@@ -303,7 +303,7 @@ async def set_target_macros(
 
 
 client = genai.Client()
-# One conversation per user
+# Conversations by chat key, usually the user id
 _chats: dict[str, genai.chats.AsyncChat] = {}
 
 SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
@@ -346,15 +346,19 @@ def _create_chat() -> genai.chats.AsyncChat:
     )
 
 
-def reset_chat(user_id: str):
-    _chats.pop(user_id, None)
+def reset_chat(chat_key: str):
+    _chats.pop(chat_key, None)
 
 
-async def send_prompt(user_id: str, day: date, prompt: str, image_path="") -> str:
-    """Sends the prompt to the user's conversation, tools act on that user's data for the given day."""
-    chat = _chats.get(user_id)
+async def send_prompt(user_id: str, day: date, prompt: str, image_path="", chat_key: str = "") -> str:
+    """Sends the prompt to a conversation, tools act on user_id's data for the given day.
+
+    chat_key picks the conversation, it defaults to user_id.
+    """
+    chat_key = chat_key or user_id
+    chat = _chats.get(chat_key)
     if chat is None:
-        chat = _chats[user_id] = _create_chat()
+        chat = _chats[chat_key] = _create_chat()
     content = prompt
     if image_path:
         img = Image.open(image_path)

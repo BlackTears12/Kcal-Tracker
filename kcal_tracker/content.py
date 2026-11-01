@@ -1,5 +1,5 @@
 import reflex as rx
-from kcal_tracker.states import NutritionState, UIState
+from kcal_tracker.states import NutritionState, UIState, Login
 from kcal_tracker.components.navbar import navbar
 from kcal_tracker.components.dashboard import (
     date_navigator,
@@ -23,6 +23,37 @@ def main_content() -> rx.Component:
         navbar(),
         rx.container(
             rx.vstack(
+                # Admin working on another user's log: make it impossible to miss
+                rx.cond(
+                    Login.is_acting_for_other,
+                    rx.callout.root(
+                        rx.flex(
+                            rx.hstack(
+                                rx.callout.icon(rx.icon("user-cog", size=16)),
+                                rx.callout.text(f"You're editing {Login.acting_name}'s log"),
+                                align="center",
+                                spacing="2",
+                            ),
+                            rx.button(
+                                "Switch back",
+                                size="1",
+                                variant="soft",
+                                color_scheme="amber",
+                                on_click=Login.switch_profile(""),
+                                style={"cursor": "pointer"},
+                            ),
+                            justify="between",
+                            align="center",
+                            width="100%",
+                            gap="2",
+                            wrap="wrap",
+                        ),
+                        color_scheme="amber",
+                        variant="surface",
+                        width="100%",
+                    ),
+                ),
+
                 # 1. Date Navigator (Content: The date (or today) with previous/next day buttons)
                 date_navigator(),
 

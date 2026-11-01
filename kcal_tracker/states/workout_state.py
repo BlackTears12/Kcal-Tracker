@@ -1,7 +1,7 @@
 import reflex as rx
 from kcal_tracker.data.workout import Workout, WorkoutType
 from kcal_tracker.models.services import NutritionService
-from kcal_tracker.states.login_state import current_user_id
+from kcal_tracker.states.login_state import acting_user_id
 from kcal_tracker.states.nutrition_state import NutritionState
 
 
@@ -70,7 +70,7 @@ class WorkoutDialogState(rx.State):
     async def save_workout(self):
         if not self.name.strip():
             return
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
 

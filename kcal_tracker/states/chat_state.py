@@ -5,7 +5,7 @@ import pathlib
 import kcal_tracker.models.agent as agent
 import asyncio
 
-from kcal_tracker.states.login_state import current_user_id
+from kcal_tracker.states.login_state import acting_user_id, current_user_id
 from kcal_tracker.states.nutrition_state import NutritionState
 from kcal_tracker.states.recipes_state import RecipesState
 
@@ -131,9 +131,10 @@ class ChatState(rx.State):
     @rx.event(background=True)
     async def handle_submit(self):
         async with self:
-            user_id = await current_user_id(self)
+            user_id = await acting_user_id(self)
             if user_id is None or (not self.chat_input.strip() and not self.uploaded_image):
                 return
+            chat_key = await self._chat_key()
             user_text = self.chat_input.strip()
             img_path = self.uploaded_image
             img_filename = self.uploaded_image_filename
@@ -149,7 +150,7 @@ class ChatState(rx.State):
 
         prompt_to_send = user_text if user_text else "Please analyze this food / meal picture, describe what you see, estimate its calories and macros, or log it."
         try:
-            response = await asyncio.wait_for(agent.send_prompt(user_id, day, prompt_to_send, img_path), timeout=60.0)
+            response = await asyncio.wait_for(agent.send_prompt(user_id, day, prompt_to_send, img_path, chat_key=chat_key), timeout=60.0)
         except asyncio.TimeoutError:
             response = "Request timed out. No response received within 1 minute."
         except Exception as e:
@@ -160,9 +161,12 @@ class ChatState(rx.State):
             if response:
                 self.add_ai_message(response)
             self.is_thinking = False
-            # The agent may have changed meals, targets or recipes
-            nutrition_state = await self.get_state(NutritionState)
-            nutrition_state._reload(user_id)
+            # The agent may have changed meals, targets or recipes. Reload whichever log is
+            # shown now, an admin may have switched logs while waiting
+            shown_user_id = await acting_user_id(self)
+            if shown_user_id is not None:
+                nutrition_state = await self.get_state(NutritionState)
+                nutrition_state._reload(shown_user_id)
             recipes_state = await self.get_state(RecipesState)
             recipes_state._reload()
 
@@ -171,12 +175,20 @@ class ChatState(rx.State):
         return ChatState.handle_submit
 
     async def clear_chat(self):
-        user_id = await current_user_id(self)
-        if user_id is not None:
-            agent.reset_chat(user_id)
+        chat_key = await self._chat_key()
+        if chat_key is not None:
+            agent.reset_chat(chat_key)
         self.history = []
         self.chat_input = ""
         self.uploaded_image = ""
         self.uploaded_image_filename = ""
         self.is_thinking = False
         self.is_uploading = False
+
+    async def _chat_key(self) -> str | None:
+        """The AI conversation to use: an admin working on another user's log gets a separate one."""
+        user_id = await current_user_id(self)
+        acting_id = await acting_user_id(self)
+        if user_id is None or acting_id is None:
+            return None
+        return user_id if acting_id == user_id else f"{user_id}->{acting_id}"

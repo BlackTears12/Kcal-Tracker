@@ -71,6 +71,31 @@ def navbar() -> rx.Component:
                     rx.menu.content(
                         rx.text(Login.display_name, size="2", weight="bold", color_scheme="gray", padding_x="2", padding_y="1"),
                         rx.menu.separator(),
+                        rx.cond(
+                            Login.is_admin,
+                            rx.fragment(
+                                rx.menu.sub(
+                                    rx.menu.sub_trigger(
+                                        rx.icon("users", size=14),
+                                        "Switch log",
+                                    ),
+                                    rx.menu.sub_content(
+                                        rx.menu.item(
+                                            "My own log",
+                                            on_click=Login.switch_profile(""),
+                                        ),
+                                        rx.foreach(
+                                            Login.switchable_profiles,
+                                            lambda p: rx.menu.item(
+                                                rx.cond(p.name != "", p.name, p.email),
+                                                on_click=Login.switch_profile(p.email),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                rx.menu.separator(),
+                            ),
+                        ),
                         rx.menu.item(
                             rx.icon("log-out", size=14),
                             "Log out",
