@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from PIL import Image
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
-from kcal_tracker.data.workout import Workout, WorkoutType
+from kcal_tracker.data.workout import Exercise, Workout, WorkoutType
 from kcal_tracker.models.services import DuplicateRecipeError, NutritionService, RecipeService
 
 
@@ -96,12 +96,21 @@ async def remove_meal(id: int) -> str:
     return "Meal removed." if _nutrition().remove_meal(id) else f"Error: no logged meal with id {id}."
 
 
+class ExerciseSchema(BaseModel):
+    name: str = Field(description="Name of the exercise, e.g. Bench press, Squat, Pull-up")
+    sets: int = Field(default=3, description="Number of sets")
+    reps: int = Field(default=10, description="Repetitions per set")
+    weight_kg: float = Field(default=0.0, description="Weight lifted in kg, 0 for bodyweight exercises")
+
+
 class WorkoutSchema(BaseModel):
     id: int = Field(default=0, description="The ID of the already logged workout, not used when logging a new workout")
     name: str = Field(description="Name of the workout, e.g. 5k run, Upper body strength")
     type: str = Field(default="Other", description="Workout type: Cardio, Strength, Sports, Mobility, or Other")
     duration_min: float = Field(default=0.0, description="Duration of the workout in minutes")
     calories_burned: float = Field(description="Estimated kcal burned by the workout")
+    distance_km: float = Field(default=0.0, description="Cardio only: distance covered in km")
+    exercises: list[ExerciseSchema] = Field(default_factory=list, description="Strength only: the exercises done, one entry per exercise (or per weight if it changed between sets)")
 
     @classmethod
     def from_app_workout(cls, workout: Workout) -> "WorkoutSchema":
@@ -111,6 +120,9 @@ class WorkoutSchema(BaseModel):
             type=workout.type.value,
             duration_min=workout.duration_min,
             calories_burned=workout.calories_burned,
+            distance_km=workout.distance_km,
+            exercises=[ExerciseSchema(name=e.name, sets=e.sets, reps=e.reps, weight_kg=e.weight_kg)
+                       for e in workout.exercises],
         )
 
     def to_app_workout(self) -> Workout:
@@ -125,6 +137,8 @@ class WorkoutSchema(BaseModel):
             type=workout_type,
             duration_min=self.duration_min,
             calories_burned=self.calories_burned,
+            distance_km=self.distance_km,
+            exercises=[Exercise(name=e.name, sets=e.sets, reps=e.reps, weight_kg=e.weight_kg) for e in self.exercises],
         )
 
 
@@ -140,7 +154,7 @@ async def add_workouts(workouts: list[WorkoutSchema]) -> str:
 
 
 async def update_workout(workout: WorkoutSchema) -> str:
-    """Update a logged workout with the same id"""
+    """Update a logged workout with the same id. Send the full workout including all its exercises, they replace the old list."""
     updated = _nutrition().update_workout(workout.to_app_workout())
     return f"Updated workout '{updated.name}'." if updated else f"Error: no logged workout with id {workout.id}."
 
@@ -308,7 +322,7 @@ _chats: dict[str, genai.chats.AsyncChat] = {}
 
 SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
 - When the user states what they ate, calculate macros accurately and call add_meals immediately. Specify amount and unit (g, dkg, kg, ml, dl, l, serving).
-- When the user describes a workout or exercise they did, estimate the calories burned from the activity, duration and intensity, and call add_workouts. Use get_workouts, update_workout and remove_workout to view or change logged workouts. Burned calories are added to the user's daily calorie budget.
+- When the user describes a workout or exercise they did, estimate the calories burned from the activity, duration and intensity, and call add_workouts. For strength training list every exercise with its sets, reps and weight in kg; for cardio include the distance in km. Use get_workouts, update_workout and remove_workout to view or change logged workouts. Burned calories are added to the user's daily calorie budget.
 - When the user asks to create or save a recipe, calculate all ingredients with their amounts, units, and macros per 1 unit, write clear step-by-step instructions, and call add_recipe. Recipes are uniquely identified by their name.
 - When the user asks about their saved recipes or meals, call get_recipes or get_meals.
 - When the user asks to update or remove meals or recipes, use update_meal, remove_meal, update_recipe, or remove_recipe (recipes are identified by name).

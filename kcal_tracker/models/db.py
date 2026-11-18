@@ -1,6 +1,7 @@
 """SQLite persistence: table definitions and session factory."""
 import datetime
 import pathlib
+from sqlalchemy import inspect, text
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 DB_PATH = pathlib.Path("data", "kcal.db")
@@ -34,6 +35,19 @@ class WorkoutRow(SQLModel, table=True):
     type: str
     duration_min: float = 0.0
     calories_burned: float = 0.0
+    distance_km: float = 0.0
+
+
+class ExerciseRow(SQLModel, table=True):
+    __tablename__ = "exercise"  # type: ignore
+
+    id: int | None = Field(default=None, primary_key=True)
+    workout_id: int = Field(foreign_key="workout.id", index=True)
+    position: int = 0
+    name: str
+    sets: int = 0
+    reps: int = 0
+    weight_kg: float = 0.0
 
 
 class AuthSessionRow(SQLModel, table=True):
@@ -93,7 +107,29 @@ def get_engine():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         _engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
         SQLModel.metadata.create_all(_engine)
+        _add_missing_columns(_engine)
     return _engine
+
+
+def _add_missing_columns(engine):
+    """create_all only creates missing tables, this adds columns that were added to existing ones.
+
+    Only handles new columns with a plain default value, anything else needs a real migration.
+    """
+    existing_tables = inspect(engine).get_table_names()
+    with engine.begin() as conn:
+        for table in SQLModel.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            existing = {c["name"] for c in inspect(conn).get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+                default = column.default.arg if column.default is not None else None
+                if default is None or callable(default):
+                    raise RuntimeError(f"Can't add column {table.name}.{column.name} automatically, it needs a default value")
+                col_type = column.type.compile(dialect=engine.dialect)
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {col_type} NOT NULL DEFAULT {default!r}'))
 
 
 def session() -> Session:

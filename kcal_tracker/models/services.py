@@ -13,9 +13,10 @@ from sqlmodel import Session, col, select
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.profile import Profile
 from kcal_tracker.data.recipe import Recipe, Ingredient
-from kcal_tracker.data.workout import Workout, WorkoutType
+from kcal_tracker.data.workout import Exercise, Workout, WorkoutType
 from kcal_tracker.models import db
-from kcal_tracker.models.db import AuthSessionRow, IngredientRow, MealRow, RecipeRow, TargetRow, WorkoutRow
+from kcal_tracker.models.db import (AuthSessionRow, ExerciseRow, IngredientRow, MealRow, RecipeRow, TargetRow,
+                                    WorkoutRow)
 
 PROFILES_PATH = pathlib.Path("data", "shared", "profiles_repo.csv")
 
@@ -155,7 +156,7 @@ def _editable_meal_fields(meal: Meal) -> dict:
     }
 
 
-def _workout_from_row(row: WorkoutRow) -> Workout:
+def _workout_from_row(row: WorkoutRow, exercise_rows: list[ExerciseRow]) -> Workout:
     return Workout(
         id=row.id or 0,
         name=row.name,
@@ -163,17 +164,36 @@ def _workout_from_row(row: WorkoutRow) -> Workout:
         duration_min=row.duration_min,
         calories_burned=row.calories_burned,
         date=row.date,
+        distance_km=row.distance_km,
+        exercises=[Exercise(name=e.name, sets=e.sets, reps=e.reps, weight_kg=e.weight_kg)
+                   for e in sorted(exercise_rows, key=lambda e: e.position)],
     )
 
 
 def _editable_workout_fields(workout: Workout) -> dict:
     """Fields a workout edit may change, its owner and date stay fixed."""
+    workout_type = WorkoutType(workout.type)
     return {
         "name": workout.name.strip(),
-        "type": WorkoutType(workout.type).value,
+        "type": workout_type.value,
         "duration_min": max(0.0, float(workout.duration_min)),
         "calories_burned": max(0.0, float(workout.calories_burned)),
+        # Distance only means something for cardio, e.g. after switching a run to strength
+        "distance_km": max(0.0, float(workout.distance_km)) if workout_type == WorkoutType.Cardio else 0.0,
     }
+
+
+def _exercise_rows(workout_id: int, workout: Workout) -> list[ExerciseRow]:
+    if WorkoutType(workout.type) != WorkoutType.Strength:
+        return []
+    return [ExerciseRow(
+        workout_id=workout_id,
+        position=i,
+        name=e.name.strip(),
+        sets=max(0, int(e.sets)),
+        reps=max(0, int(e.reps)),
+        weight_kg=max(0.0, float(e.weight_kg)),
+    ) for i, e in enumerate(e for e in workout.exercises if e.name.strip())]
 
 
 class NutritionService:
@@ -253,21 +273,26 @@ class NutritionService:
             rows = s.exec(select(WorkoutRow)
                           .where(WorkoutRow.user_id == self.user_id, WorkoutRow.date == day)
                           .order_by(col(WorkoutRow.id))).all()
-            return [_workout_from_row(r) for r in rows]
+            exercises: dict[int, list[ExerciseRow]] = {}
+            if rows:
+                for e in s.exec(select(ExerciseRow).where(col(ExerciseRow.workout_id).in_([r.id for r in rows]))).all():
+                    exercises.setdefault(e.workout_id, []).append(e)
+            return [_workout_from_row(r, exercises.get(r.id or 0, [])) for r in rows]
 
     def get_workout(self, workout_id: int) -> Workout | None:
         with db.session() as s:
             row = self._own_workout_row(s, workout_id)
-            return _workout_from_row(row) if row else None
+            return self._load_workout(s, row) if row else None
 
     def add_workouts(self, workouts: list[Workout], day: date) -> list[Workout]:
         with db.session() as s:
             rows = [WorkoutRow(user_id=self.user_id, date=day, **_editable_workout_fields(w)) for w in workouts]
             s.add_all(rows)
+            s.flush()
+            for row, workout in zip(rows, workouts):
+                s.add_all(_exercise_rows(row.id or 0, workout))
             s.commit()
-            for r in rows:
-                s.refresh(r)
-            return [_workout_from_row(r) for r in rows]
+            return [self._load_workout(s, r) for r in rows]
 
     def update_workout(self, workout: Workout) -> Workout | None:
         """Updates the logged workout with the same id, returns None if the user has no such workout."""
@@ -278,15 +303,17 @@ class NutritionService:
             for key, value in _editable_workout_fields(workout).items():
                 setattr(row, key, value)
             s.add(row)
+            self._delete_exercises(s, row.id or 0)
+            s.add_all(_exercise_rows(row.id or 0, workout))
             s.commit()
-            s.refresh(row)
-            return _workout_from_row(row)
+            return self._load_workout(s, row)
 
     def remove_workout(self, workout_id: int) -> bool:
         with db.session() as s:
             row = self._own_workout_row(s, workout_id)
             if row is None:
                 return False
+            self._delete_exercises(s, row.id or 0)
             s.delete(row)
             s.commit()
             return True
@@ -317,6 +344,15 @@ class NutritionService:
     def _own_workout_row(self, s: Session, workout_id: int) -> WorkoutRow | None:
         row = s.get(WorkoutRow, workout_id)
         return row if row is not None and row.user_id == self.user_id else None
+
+    def _load_workout(self, s: Session, row: WorkoutRow) -> Workout:
+        s.refresh(row)
+        exercises = s.exec(select(ExerciseRow).where(ExerciseRow.workout_id == row.id)).all()
+        return _workout_from_row(row, list(exercises))
+
+    def _delete_exercises(self, s: Session, workout_id: int):
+        for e in s.exec(select(ExerciseRow).where(ExerciseRow.workout_id == workout_id)).all():
+            s.delete(e)
 
 # endregion
 
