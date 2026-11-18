@@ -3,7 +3,7 @@ from kcal_tracker.data.meal import *
 from kcal_tracker.states.nutrition_state import NutritionState
 from kcal_tracker.data.recipe import *
 from kcal_tracker.models.services import DuplicateRecipeError, NutritionService, RecipeService
-from kcal_tracker.states.login_state import current_user_id
+from kcal_tracker.states.login_state import acting_user_id, current_user_id
 
 
 class RecipesState(rx.State):
@@ -27,7 +27,7 @@ class RecipesState(rx.State):
         self._reload()
 
     async def log_recipe_as_meal(self, recipe: Recipe):
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
         if isinstance(recipe, dict):
@@ -211,7 +211,7 @@ class RecipeDialogState(rx.State):
         if not trimmed_name:
             self.error_message = "Recipe title cannot be empty."
             return
-        user_id = await current_user_id(self)
+        user_id = await acting_user_id(self)
         if user_id is None:
             return
 

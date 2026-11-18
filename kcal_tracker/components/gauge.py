@@ -80,7 +80,7 @@ def calorie_gauge() -> rx.Component:
                             style={"line_height": "1"},
                         ),
                         rx.text(
-                            f"/ {NutritionState.target_calories} kcal",
+                            f"/ {NutritionState.calorie_budget} kcal",
                             size="2",
                             color_scheme="gray",
                             weight="medium",
@@ -118,6 +118,12 @@ def calorie_gauge() -> rx.Component:
                     spacing="0",
                 ),
                 rx.vstack(
+                    rx.text("Burned", size="1", color_scheme="gray", weight="medium"),
+                    rx.text(f"{NutritionState.total_burned} kcal", size="3", weight="bold", color_scheme="cyan"),
+                    align="center",
+                    spacing="0",
+                ),
+                rx.vstack(
                     rx.text("Target", size="1", color_scheme="gray", weight="medium"),
                     rx.text(f"{NutritionState.target_calories} kcal", size="3", weight="bold"),
                     align="center",
@@ -134,7 +140,8 @@ def calorie_gauge() -> rx.Component:
                     align="center",
                     spacing="0",
                 ),
-                columns="3",
+                columns=rx.breakpoints(initial="2", sm="4"),
+                spacing_y="2",
                 width="100%",
                 padding_top="3",
                 border_top="1px solid var(--gray-4)",

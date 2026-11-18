@@ -103,7 +103,7 @@ def dashboard_summary() -> rx.Component:
 
 
 def content_menubar() -> rx.Component:
-    """Material 3 Segmented Menubar for choosing between Logged Meals, Recipes, or All."""
+    """Material 3 Segmented Menubar for choosing between Logged Meals, Workouts, Recipes, or All."""
     return rx.box(
         rx.grid(
             # Tab 1: Logged Meals
@@ -133,7 +133,34 @@ def content_menubar() -> rx.Component:
                     "width": "100%",
                 },
             ),
-            # Tab 2: Recipes
+            # Tab 2: Workouts
+            rx.button(
+                rx.hstack(
+                    rx.icon("activity", size=16),
+                    rx.text("Workouts", weight="bold"),
+                    rx.badge(
+                        f"{NutritionState.workout_count}",
+                        color_scheme=rx.cond(UIState.active_tab == "workouts", "cyan", "gray"),
+                        variant=rx.cond(UIState.active_tab == "workouts", "solid", "surface"),
+                        size="1",
+                        radius="full",
+                    ),
+                    spacing="2",
+                    align="center",
+                    justify="center",
+                ),
+                size="3",
+                variant=rx.cond(UIState.active_tab == "workouts", "solid", "ghost"),
+                color_scheme=rx.cond(UIState.active_tab == "workouts", "cyan", "gray"),
+                on_click=lambda: UIState.set_active_tab("workouts"),
+                style={
+                    "cursor": "pointer",
+                    "border_radius": "12px",
+                    "transition": "all 0.2s ease",
+                    "width": "100%",
+                },
+            ),
+            # Tab 3: Recipes
             rx.button(
                 rx.hstack(
                     rx.icon("chef-hat", size=16),
@@ -160,7 +187,7 @@ def content_menubar() -> rx.Component:
                     "width": "100%",
                 },
             ),
-            # Tab 3: All
+            # Tab 4: All
             rx.button(
                 rx.hstack(
                     rx.icon("layout-grid", size=16),
@@ -180,7 +207,7 @@ def content_menubar() -> rx.Component:
                     "width": "100%",
                 },
             ),
-            columns="3",
+            columns=rx.breakpoints(initial="2", sm="4"),
             spacing="2",
             width="100%",
         ),

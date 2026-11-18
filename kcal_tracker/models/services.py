@@ -1,16 +1,22 @@
-"""Business logic for meals, targets, recipes and profiles.
+"""Business logic for meals, workouts, targets, recipes, profiles and login sessions.
 
 Plain Python with no Reflex dependency: the UI states and the AI agent both go through here.
 """
 import csv
+import hashlib
+import os
 import pathlib
+import secrets
+import datetime as dt
 from datetime import date
 from sqlmodel import Session, col, select
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.profile import Profile
 from kcal_tracker.data.recipe import Recipe, Ingredient
+from kcal_tracker.data.workout import Exercise, Workout, WorkoutType
 from kcal_tracker.models import db
-from kcal_tracker.models.db import IngredientRow, MealRow, RecipeRow, TargetRow
+from kcal_tracker.models.db import (AuthSessionRow, ExerciseRow, IngredientRow, MealRow, RecipeRow, TargetRow,
+                                    WorkoutRow)
 
 PROFILES_PATH = pathlib.Path("data", "shared", "profiles_repo.csv")
 
@@ -41,6 +47,83 @@ def load_profiles() -> list[Profile]:
 def find_profile(email: str) -> Profile | None:
     email = email.strip().lower()
     return next((p for p in load_profiles() if p.email == email), None)
+
+
+def is_admin(user_id: str) -> bool:
+    """Admins can view and edit every user's data. They are listed comma-separated in the
+    KCAL_ADMIN_EMAILS environment variable (.env), and must also be allowed users."""
+    admins = {e.strip().lower() for e in os.environ.get("KCAL_ADMIN_EMAILS", "").split(",") if e.strip()}
+    return user_id.strip().lower() in admins and find_profile(user_id) is not None
+
+# endregion
+
+# region login sessions
+
+SESSION_LIFETIME = dt.timedelta(days=90)
+# Sliding expiry: a used session is extended, but at most this often to avoid a write on every event
+SESSION_RENEW_AFTER = dt.timedelta(days=1)
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(dt.UTC)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+class SessionService:
+    """Long-lived logins: the browser keeps a random token, the database only its hash."""
+
+    def create(self, user_id: str, user_agent: str = "") -> str:
+        """Starts a session for an already authenticated user and returns its token."""
+        token = secrets.token_urlsafe(32)
+        now = _now()
+        with db.session() as s:
+            for expired in s.exec(select(AuthSessionRow).where(AuthSessionRow.expires_at <= now)).all():
+                s.delete(expired)
+            s.add(AuthSessionRow(token_hash=_hash_token(token), user_id=user_id, created_at=now,
+                                 last_seen_at=now, expires_at=now + SESSION_LIFETIME, user_agent=user_agent[:200]))
+            s.commit()
+        return token
+
+    def validate(self, token: str) -> str | None:
+        """Returns the user id of a live session, or None. Sessions of users no longer allowed are revoked."""
+        if not token:
+            return None
+        now = _now()
+        with db.session() as s:
+            row = s.get(AuthSessionRow, _hash_token(token))
+            if row is None:
+                return None
+            if row.expires_at <= now or find_profile(row.user_id) is None:
+                s.delete(row)
+                s.commit()
+                return None
+            if now - row.last_seen_at >= SESSION_RENEW_AFTER:
+                row.last_seen_at, row.expires_at = now, now + SESSION_LIFETIME
+                s.add(row)
+                s.commit()
+            return row.user_id
+
+    def revoke(self, token: str) -> bool:
+        if not token:
+            return False
+        with db.session() as s:
+            row = s.get(AuthSessionRow, _hash_token(token))
+            if row is None:
+                return False
+            s.delete(row)
+            s.commit()
+            return True
+
+    def revoke_all(self, user_id: str) -> int:
+        with db.session() as s:
+            rows = s.exec(select(AuthSessionRow).where(AuthSessionRow.user_id == user_id)).all()
+            for r in rows:
+                s.delete(r)
+            s.commit()
+            return len(rows)
 
 # endregion
 
@@ -73,8 +156,48 @@ def _editable_meal_fields(meal: Meal) -> dict:
     }
 
 
+def _workout_from_row(row: WorkoutRow, exercise_rows: list[ExerciseRow]) -> Workout:
+    return Workout(
+        id=row.id or 0,
+        name=row.name,
+        type=WorkoutType(row.type),
+        duration_min=row.duration_min,
+        calories_burned=row.calories_burned,
+        date=row.date,
+        distance_km=row.distance_km,
+        exercises=[Exercise(name=e.name, sets=e.sets, reps=e.reps, weight_kg=e.weight_kg)
+                   for e in sorted(exercise_rows, key=lambda e: e.position)],
+    )
+
+
+def _editable_workout_fields(workout: Workout) -> dict:
+    """Fields a workout edit may change, its owner and date stay fixed."""
+    workout_type = WorkoutType(workout.type)
+    return {
+        "name": workout.name.strip(),
+        "type": workout_type.value,
+        "duration_min": max(0.0, float(workout.duration_min)),
+        "calories_burned": max(0.0, float(workout.calories_burned)),
+        # Distance only means something for cardio, e.g. after switching a run to strength
+        "distance_km": max(0.0, float(workout.distance_km)) if workout_type == WorkoutType.Cardio else 0.0,
+    }
+
+
+def _exercise_rows(workout_id: int, workout: Workout) -> list[ExerciseRow]:
+    if WorkoutType(workout.type) != WorkoutType.Strength:
+        return []
+    return [ExerciseRow(
+        workout_id=workout_id,
+        position=i,
+        name=e.name.strip(),
+        sets=max(0, int(e.sets)),
+        reps=max(0, int(e.reps)),
+        weight_kg=max(0.0, float(e.weight_kg)),
+    ) for i, e in enumerate(e for e in workout.exercises if e.name.strip())]
+
+
 class NutritionService:
-    """Meals and daily targets of a single user."""
+    """Meals, workouts and daily targets of a single user."""
 
     def __init__(self, user_id: str):
         if not user_id:
@@ -145,6 +268,56 @@ class NutritionService:
         )
         return self.add_meals([meal], day)[0]
 
+    def workouts_on(self, day: date) -> list[Workout]:
+        with db.session() as s:
+            rows = s.exec(select(WorkoutRow)
+                          .where(WorkoutRow.user_id == self.user_id, WorkoutRow.date == day)
+                          .order_by(col(WorkoutRow.id))).all()
+            exercises: dict[int, list[ExerciseRow]] = {}
+            if rows:
+                for e in s.exec(select(ExerciseRow).where(col(ExerciseRow.workout_id).in_([r.id for r in rows]))).all():
+                    exercises.setdefault(e.workout_id, []).append(e)
+            return [_workout_from_row(r, exercises.get(r.id or 0, [])) for r in rows]
+
+    def get_workout(self, workout_id: int) -> Workout | None:
+        with db.session() as s:
+            row = self._own_workout_row(s, workout_id)
+            return self._load_workout(s, row) if row else None
+
+    def add_workouts(self, workouts: list[Workout], day: date) -> list[Workout]:
+        with db.session() as s:
+            rows = [WorkoutRow(user_id=self.user_id, date=day, **_editable_workout_fields(w)) for w in workouts]
+            s.add_all(rows)
+            s.flush()
+            for row, workout in zip(rows, workouts):
+                s.add_all(_exercise_rows(row.id or 0, workout))
+            s.commit()
+            return [self._load_workout(s, r) for r in rows]
+
+    def update_workout(self, workout: Workout) -> Workout | None:
+        """Updates the logged workout with the same id, returns None if the user has no such workout."""
+        with db.session() as s:
+            row = self._own_workout_row(s, workout.id)
+            if row is None:
+                return None
+            for key, value in _editable_workout_fields(workout).items():
+                setattr(row, key, value)
+            s.add(row)
+            self._delete_exercises(s, row.id or 0)
+            s.add_all(_exercise_rows(row.id or 0, workout))
+            s.commit()
+            return self._load_workout(s, row)
+
+    def remove_workout(self, workout_id: int) -> bool:
+        with db.session() as s:
+            row = self._own_workout_row(s, workout_id)
+            if row is None:
+                return False
+            self._delete_exercises(s, row.id or 0)
+            s.delete(row)
+            s.commit()
+            return True
+
     def get_targets(self) -> MacroProfile:
         with db.session() as s:
             row = s.get(TargetRow, self.user_id)
@@ -167,6 +340,19 @@ class NutritionService:
     def _own_meal_row(self, s: Session, meal_id: int) -> MealRow | None:
         row = s.get(MealRow, meal_id)
         return row if row is not None and row.user_id == self.user_id else None
+
+    def _own_workout_row(self, s: Session, workout_id: int) -> WorkoutRow | None:
+        row = s.get(WorkoutRow, workout_id)
+        return row if row is not None and row.user_id == self.user_id else None
+
+    def _load_workout(self, s: Session, row: WorkoutRow) -> Workout:
+        s.refresh(row)
+        exercises = s.exec(select(ExerciseRow).where(ExerciseRow.workout_id == row.id)).all()
+        return _workout_from_row(row, list(exercises))
+
+    def _delete_exercises(self, s: Session, workout_id: int):
+        for e in s.exec(select(ExerciseRow).where(ExerciseRow.workout_id == workout_id)).all():
+            s.delete(e)
 
 # endregion
 
