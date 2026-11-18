@@ -8,6 +8,7 @@ import asyncio
 from kcal_tracker.states.login_state import acting_user_id, current_user_id
 from kcal_tracker.states.nutrition_state import NutritionState
 from kcal_tracker.states.recipes_state import RecipesState
+from kcal_tracker.states.body_state import BodyState
 
 @dataclass
 class ChatMessage:
@@ -167,6 +168,8 @@ class ChatState(rx.State):
             if shown_user_id is not None:
                 nutrition_state = await self.get_state(NutritionState)
                 nutrition_state._reload(shown_user_id)
+                body_state = await self.get_state(BodyState)
+                body_state._reload(shown_user_id)
             recipes_state = await self.get_state(RecipesState)
             recipes_state._reload()
 

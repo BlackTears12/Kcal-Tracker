@@ -1,7 +1,7 @@
 """SQLite persistence: table definitions and session factory."""
 import datetime
 import pathlib
-from sqlalchemy import inspect, text
+from sqlalchemy import UniqueConstraint, inspect, text
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 DB_PATH = pathlib.Path("data", "kcal.db")
@@ -48,6 +48,18 @@ class ExerciseRow(SQLModel, table=True):
     sets: int = 0
     reps: int = 0
     weight_kg: float = 0.0
+
+
+class BodyMeasurementRow(SQLModel, table=True):
+    __tablename__ = "body_measurement"  # type: ignore
+    # One value per body site and day
+    __table_args__ = (UniqueConstraint("user_id", "date", "site"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    date: datetime.date = Field(index=True)
+    site: str
+    value_cm: float
 
 
 class AuthSessionRow(SQLModel, table=True):

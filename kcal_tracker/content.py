@@ -13,6 +13,7 @@ from kcal_tracker.components.dashboard import (
 )
 from kcal_tracker.components.meals import meals_section, meal_dialog
 from kcal_tracker.components.workouts import workouts_section, workout_dialog
+from kcal_tracker.components.body import body_section, body_dialog
 from kcal_tracker.components.recipes import recipes_section, recipe_dialog
 from kcal_tracker.components.chat import chat_dialog, chat_fab, chat_section
 
@@ -73,6 +74,10 @@ def main_content() -> rx.Component:
                     workouts_section(),
                 ),
                 rx.cond(
+                    UIState.is_body_active,
+                    body_section(),
+                ),
+                rx.cond(
                     UIState.is_recipes_active,
                     recipes_section(),
                 ),
@@ -89,6 +94,7 @@ def main_content() -> rx.Component:
         # Dialog Modals
         meal_dialog(),
         workout_dialog(),
+        body_dialog(),
         recipe_dialog(),
         target_dialog(),
         chat_dialog(),

@@ -3,7 +3,7 @@ import reflex as rx
 
 class UIState(rx.State):
     """Manages active content menubar tab, agent chat modal visibility, and top-level UI states."""
-    active_tab: str = "meals"  # Options: "meals", "workouts", "recipes", "all"
+    active_tab: str = "meals"  # Options: "meals", "workouts", "body", "recipes", "all"
     is_chat_open: bool = False
 
     def set_active_tab(self, tab: str):
@@ -28,6 +28,10 @@ class UIState(rx.State):
     @rx.var
     def is_workouts_active(self) -> bool:
         return self.active_tab in ["workouts", "all"]
+
+    @rx.var
+    def is_body_active(self) -> bool:
+        return self.active_tab in ["body", "all"]
 
     @rx.var
     def is_recipes_active(self) -> bool:

@@ -7,7 +7,8 @@ from PIL import Image
 from kcal_tracker.data.meal import *
 from kcal_tracker.data.recipe import Recipe, Ingredient
 from kcal_tracker.data.workout import Exercise, Workout, WorkoutType
-from kcal_tracker.models.services import DuplicateRecipeError, NutritionService, RecipeService
+from kcal_tracker.models.services import BodyService, DuplicateRecipeError, NutritionService, RecipeService
+from kcal_tracker.data.body import STANDARD_SITES
 
 
 @dataclass
@@ -162,6 +163,30 @@ async def update_workout(workout: WorkoutSchema) -> str:
 async def remove_workout(id: int) -> str:
     """Remove the workout from the log with the specified id"""
     return "Workout removed." if _nutrition().remove_workout(id) else f"Error: no logged workout with id {id}."
+
+
+class BodyMeasurementSchema(BaseModel):
+    site: str = Field(description="Body site, one of: " + ", ".join(STANDARD_SITES) + ". Other names are allowed for anything else")
+    value_cm: float = Field(description="Circumference in cm")
+    date: str = Field(default="", description="ISO date of the measurement, only set in results, not used when logging")
+
+
+async def get_body_measurements() -> list[BodyMeasurementSchema]:
+    """Returns all of the user's body measurements (circumferences in cm), oldest first."""
+    return [BodyMeasurementSchema(site=m.site, value_cm=m.value_cm, date=m.date_iso)
+            for m in BodyService(_context.get().user_id).all_measurements()]
+
+
+async def log_body_measurements(measurements: list[BodyMeasurementSchema]) -> str:
+    """Log body measurements (circumferences in cm) on the day the user is viewing, replacing that day's values for the same sites."""
+    BodyService(_context.get().user_id).set_day(_context.get().day, {m.site: m.value_cm for m in measurements})
+    return "Logged: " + ", ".join(f"{m.site} {m.value_cm:g} cm" for m in measurements)
+
+
+async def remove_body_measurement(site: str) -> str:
+    """Remove the measurement of a body site logged on the day the user is viewing."""
+    removed = BodyService(_context.get().user_id).remove(site, _context.get().day)
+    return "Measurement removed." if removed else f"Error: no {site} measurement logged on this day."
 
 
 class IngredientSchema(BaseModel):
@@ -323,6 +348,7 @@ _chats: dict[str, genai.chats.AsyncChat] = {}
 SYS_PROMPT = """You are a helpful nutrition and fitness assistant.
 - When the user states what they ate, calculate macros accurately and call add_meals immediately. Specify amount and unit (g, dkg, kg, ml, dl, l, serving).
 - When the user describes a workout or exercise they did, estimate the calories burned from the activity, duration and intensity, and call add_workouts. For strength training list every exercise with its sets, reps and weight in kg; for cardio include the distance in km. Use get_workouts, update_workout and remove_workout to view or change logged workouts. Burned calories are added to the user's daily calorie budget.
+- When the user tells you body measurements (circumferences like waist, hips, thigh, upper arm), call log_body_measurements with the values in cm (convert inches). Map left/right to e.g. "Thigh (L)"; "leg biceps" means the thigh. Use get_body_measurements to answer questions about their progress.
 - When the user asks to create or save a recipe, calculate all ingredients with their amounts, units, and macros per 1 unit, write clear step-by-step instructions, and call add_recipe. Recipes are uniquely identified by their name.
 - When the user asks about their saved recipes or meals, call get_recipes or get_meals.
 - When the user asks to update or remove meals or recipes, use update_meal, remove_meal, update_recipe, or remove_recipe (recipes are identified by name).
@@ -347,6 +373,9 @@ def _create_chat() -> genai.chats.AsyncChat:
                 add_workouts,
                 update_workout,
                 remove_workout,
+                get_body_measurements,
+                log_body_measurements,
+                remove_body_measurement,
                 get_recipes,
                 add_recipe,
                 update_recipe,

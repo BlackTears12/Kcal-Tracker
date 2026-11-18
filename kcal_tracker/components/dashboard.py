@@ -103,7 +103,7 @@ def dashboard_summary() -> rx.Component:
 
 
 def content_menubar() -> rx.Component:
-    """Material 3 Segmented Menubar for choosing between Logged Meals, Workouts, Recipes, or All."""
+    """Material 3 Segmented Menubar for choosing between Logged Meals, Workouts, Body, Recipes, or All."""
     return rx.box(
         rx.grid(
             # Tab 1: Logged Meals
@@ -160,7 +160,27 @@ def content_menubar() -> rx.Component:
                     "width": "100%",
                 },
             ),
-            # Tab 3: Recipes
+            # Tab 3: Body measurements
+            rx.button(
+                rx.hstack(
+                    rx.icon("ruler", size=16),
+                    rx.text("Body", weight="bold"),
+                    spacing="2",
+                    align="center",
+                    justify="center",
+                ),
+                size="3",
+                variant=rx.cond(UIState.active_tab == "body", "solid", "ghost"),
+                color_scheme=rx.cond(UIState.active_tab == "body", "teal", "gray"),
+                on_click=lambda: UIState.set_active_tab("body"),
+                style={
+                    "cursor": "pointer",
+                    "border_radius": "12px",
+                    "transition": "all 0.2s ease",
+                    "width": "100%",
+                },
+            ),
+            # Tab 4: Recipes
             rx.button(
                 rx.hstack(
                     rx.icon("chef-hat", size=16),
@@ -187,7 +207,7 @@ def content_menubar() -> rx.Component:
                     "width": "100%",
                 },
             ),
-            # Tab 4: All
+            # Tab 5: All
             rx.button(
                 rx.hstack(
                     rx.icon("layout-grid", size=16),
@@ -207,7 +227,7 @@ def content_menubar() -> rx.Component:
                     "width": "100%",
                 },
             ),
-            columns=rx.breakpoints(initial="2", sm="4"),
+            columns=rx.breakpoints(initial="3", sm="5"),
             spacing="2",
             width="100%",
         ),

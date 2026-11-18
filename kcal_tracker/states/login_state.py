@@ -73,7 +73,8 @@ class Login(GoogleAuthState):
         # Imported here because these states import this module for current_user_id
         from kcal_tracker.states.nutrition_state import NutritionState
         from kcal_tracker.states.recipes_state import RecipesState
-        return [NutritionState.view_today, RecipesState.load]
+        from kcal_tracker.states.body_state import BodyState
+        return [NutritionState.view_today, RecipesState.load, BodyState.load]
 
     @rx.event
     async def on_success(self, response: dict):
@@ -117,9 +118,10 @@ class Login(GoogleAuthState):
         # Imported here because these states import this module for current_user_id
         from kcal_tracker.states.nutrition_state import NutritionState
         from kcal_tracker.states.chat_state import ChatState
+        from kcal_tracker.states.body_state import BodyState
         # The visible chat belongs to the previous log
         (await self.get_state(ChatState)).reset()
-        return NutritionState.reload_view
+        return [NutritionState.reload_view, BodyState.load]
 
     async def logout(self):
         services.SessionService().revoke(self.session_token)
@@ -139,8 +141,9 @@ class Login(GoogleAuthState):
         from kcal_tracker.states.nutrition_state import NutritionState
         from kcal_tracker.states.recipes_state import RecipesState
         from kcal_tracker.states.chat_state import ChatState
+        from kcal_tracker.states.body_state import BodyState
         # Don't leave this user's data in the tab for whoever signs in next
-        for state_cls in (NutritionState, RecipesState, ChatState):
+        for state_cls in (NutritionState, RecipesState, ChatState, BodyState):
             (await self.get_state(state_cls)).reset()
 
     def _clear_login(self):

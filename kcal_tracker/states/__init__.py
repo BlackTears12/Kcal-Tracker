@@ -19,6 +19,7 @@ from .chat_state import (
 )
 from .login_state import Login
 from .workout_state import WorkoutDialogState
+from .body_state import BodyState, BodyDialogState
 from kcal_tracker.data.workout import Workout, WorkoutType
 from .ui_state import UIState
 
@@ -31,6 +32,8 @@ __all__ = [
     "Workout",
     "WorkoutType",
     "WorkoutDialogState",
+    "BodyState",
+    "BodyDialogState",
     "NutritionState",
     "MealDialogState",
     "TargetDialogState",

@@ -1,4 +1,4 @@
-"""Business logic for meals, workouts, targets, recipes, profiles and login sessions.
+"""Business logic for meals, workouts, targets, body measurements, recipes, profiles and login sessions.
 
 Plain Python with no Reflex dependency: the UI states and the AI agent both go through here.
 """
@@ -11,11 +11,12 @@ import datetime as dt
 from datetime import date
 from sqlmodel import Session, col, select
 from kcal_tracker.data.meal import *
+from kcal_tracker.data.body import STANDARD_SITES, Measurement, SiteSummary, normalize_site
 from kcal_tracker.data.profile import Profile
 from kcal_tracker.data.recipe import Recipe, Ingredient
 from kcal_tracker.data.workout import Exercise, Workout, WorkoutType
 from kcal_tracker.models import db
-from kcal_tracker.models.db import (AuthSessionRow, ExerciseRow, IngredientRow, MealRow, RecipeRow, TargetRow,
+from kcal_tracker.models.db import (AuthSessionRow, BodyMeasurementRow, ExerciseRow, IngredientRow, MealRow, RecipeRow, TargetRow,
                                     WorkoutRow)
 
 PROFILES_PATH = pathlib.Path("data", "shared", "profiles_repo.csv")
@@ -353,6 +354,101 @@ class NutritionService:
     def _delete_exercises(self, s: Session, workout_id: int):
         for e in s.exec(select(ExerciseRow).where(ExerciseRow.workout_id == workout_id)).all():
             s.delete(e)
+
+# endregion
+
+# region body measurements
+
+def _site_order(site: str) -> tuple[int, str]:
+    return (STANDARD_SITES.index(site), "") if site in STANDARD_SITES else (len(STANDARD_SITES), site.lower())
+
+
+class BodyService:
+    """Body measurements of a single user, at most one value per body site and day."""
+
+    def __init__(self, user_id: str):
+        if not user_id:
+            raise ValueError("user_id is required")
+        self.user_id = user_id
+
+    def all_measurements(self) -> list[Measurement]:
+        """Every measurement, oldest first."""
+        with db.session() as s:
+            rows = s.exec(select(BodyMeasurementRow)
+                          .where(BodyMeasurementRow.user_id == self.user_id)
+                          .order_by(col(BodyMeasurementRow.date))).all()
+            return [Measurement(site=r.site, date=r.date, value_cm=r.value_cm) for r in rows]
+
+    def on(self, day: date) -> dict[str, float]:
+        with db.session() as s:
+            rows = s.exec(select(BodyMeasurementRow)
+                          .where(BodyMeasurementRow.user_id == self.user_id, BodyMeasurementRow.date == day)).all()
+            return {r.site: r.value_cm for r in rows}
+
+    def set_day(self, day: date, values: dict[str, float | None]) -> None:
+        """Sets the given sites' values for the day, None or a non-positive value removes that site's entry."""
+        known = self.sites()
+        with db.session() as s:
+            existing = {r.site: r for r in s.exec(select(BodyMeasurementRow).where(
+                BodyMeasurementRow.user_id == self.user_id, BodyMeasurementRow.date == day)).all()}
+            for site, value in values.items():
+                site = self._canonical_site(site, known)
+                if not site:
+                    continue
+                row = existing.get(site)
+                if value is None or value <= 0:
+                    if row is not None:
+                        s.delete(row)
+                    continue
+                if row is None:
+                    row = existing[site] = BodyMeasurementRow(user_id=self.user_id, date=day, site=site, value_cm=value)
+                row.value_cm = float(value)
+                s.add(row)
+            s.commit()
+
+    def remove(self, site: str, day: date) -> bool:
+        with db.session() as s:
+            row = s.exec(select(BodyMeasurementRow).where(
+                BodyMeasurementRow.user_id == self.user_id, BodyMeasurementRow.date == day,
+                BodyMeasurementRow.site == self._canonical_site(site, self.sites()))).first()
+            if row is None:
+                return False
+            s.delete(row)
+            s.commit()
+            return True
+
+    def _canonical_site(self, site: str, known: list[str]) -> str:
+        """Matches custom sites case-insensitively, so 'wrist' and 'Wrist' stay one series."""
+        site = normalize_site(site)
+        return next((k for k in known if k.lower() == site.lower()), site)
+
+    def sites(self) -> list[str]:
+        """The standard sites followed by any custom ones this user has measured."""
+        custom = {m.site for m in self.all_measurements()} - set(STANDARD_SITES)
+        return STANDARD_SITES + sorted(custom, key=str.lower)
+
+    def summary(self) -> list[SiteSummary]:
+        """Latest value and change per measured site, in display order."""
+        by_site: dict[str, list[Measurement]] = {}
+        for m in self.all_measurements():
+            by_site.setdefault(m.site, []).append(m)
+        summaries = []
+        for site in sorted(by_site, key=_site_order):
+            history = list(reversed(by_site[site]))
+            change, change_text = 0.0, ""
+            if len(history) > 1:
+                change = round(history[0].value_cm - history[1].value_cm, 1)
+                change_text = (f"{change:+g} cm since {history[1].date_text}" if change
+                               else f"No change since {history[1].date_text}")
+            summaries.append(SiteSummary(
+                site=site,
+                latest_cm=history[0].value_cm,
+                latest_date_text=history[0].date_text,
+                change_cm=change,
+                change_text=change_text,
+                history=history,
+            ))
+        return summaries
 
 # endregion
 
